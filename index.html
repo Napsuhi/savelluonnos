@@ -54,7 +54,7 @@
   }
   select{appearance:none;-webkit-appearance:none;max-width:120px;}
   button{cursor:pointer;white-space:nowrap;}
-  button:disabled{opacity:.3;}
+  button:disabled{opacity:.3;cursor:default;}
   select:focus-visible,button:focus-visible{outline:2px solid var(--tonic);outline-offset:1px;}
 
   /* ---- oktaavisiirto ---- */
@@ -68,12 +68,10 @@
     padding:5px 11px;font-size:14px;line-height:1;
     background:transparent;
   }
-  #octbox button:active:not(:disabled){ background:var(--line); }
+  #octbox button:active:not(:disabled){background:var(--line);}
   #octnow{
-    min-width:34px;text-align:center;
-    font-size:12px;color:var(--key);
-    border-left:1px solid var(--line);
-    border-right:1px solid var(--line);
+    min-width:34px;text-align:center;font-size:12px;color:var(--key);
+    border-left:1px solid var(--line);border-right:1px solid var(--line);
     padding:5px 4px;
   }
 
@@ -83,12 +81,9 @@
     font-weight:600;letter-spacing:.06em;
     display:flex;align-items:center;gap:6px;
   }
-  #rec::before{
-    content:"";width:9px;height:9px;border-radius:50%;
-    border:1.5px solid var(--rec);
-  }
-  #rec.armed{ background:var(--rec);color:#fff;border-color:var(--rec); }
-  #rec.armed::before{ background:#fff;border-color:#fff; }
+  #rec::before{content:"";width:9px;height:9px;border-radius:50%;border:1.5px solid var(--rec);}
+  #rec.armed{background:var(--rec);color:#fff;border-color:var(--rec);}
+  #rec.armed::before{background:#fff;border-color:#fff;}
   #hint{font-size:9px;letter-spacing:.05em;opacity:.5;max-width:70px;line-height:1.15;}
   @media (orientation:landscape){ #hint{display:none;} }
   @media (pointer:fine){ #hint{display:none;} }
@@ -97,7 +92,7 @@
   #strip{
     flex:0 0 auto;display:none;
     align-items:center;gap:8px;
-    padding:0 8px;height:28px;
+    padding:0 8px;height:34px;
     background:#0B0E12;
     border-bottom:1px solid var(--line);
   }
@@ -111,6 +106,9 @@
   #notes::-webkit-scrollbar{display:none;}
   #notes span{padding-right:9px;}
   #notes span:last-child{color:var(--key-on);}
+  #strip button{flex:0 0 auto;padding:4px 7px;font-size:11px;}
+  #export{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
+  #export:disabled{border-color:var(--line);color:var(--key);}
 
   /* ---- koskettimisto ---- */
   #board{
@@ -144,8 +142,6 @@
   </div>
   <div id="tools">
     <span id="hint">Käännä vaakaan</span>
-    <button id="undo" type="button" disabled>Kumoa</button>
-    <button id="clear" type="button" disabled>Tyhjennä</button>
     <button id="rec" type="button">Nauhoita</button>
   </div>
 </div>
@@ -153,6 +149,9 @@
 <div id="strip">
   <span id="count">0</span>
   <div id="notes"></div>
+  <button id="undo" type="button" disabled>Kumoa</button>
+  <button id="clear" type="button" disabled>Tyhjennä</button>
+  <button id="export" type="button" disabled>Vie MIDI</button>
 </div>
 
 <div id="board"></div>
@@ -181,8 +180,7 @@ const SCALES = {
   "Blues":              [0,3,5,6,7,10]
 };
 
-// Alarivin oktaavi. Ylärivi on aina tämä + 1.
-const OCT_MIN = 1, OCT_MAX = 6;
+const OCT_MIN = 1, OCT_MAX = 6;   // alarivin oktaavi; ylärivi on aina +1
 
 const state = { root:0, scale:"Duuri", octave:4 };
 
@@ -224,9 +222,84 @@ function noteOff(){
   osc = null; amp = null; playing = null;
 }
 
+/* ---------- MIDI-kirjoitin ---------- */
+// Standard MIDI File, formaatti 0, yksi raita.
+// Kaikki nuotit samanmittaisia ja peräkkäin: ajoitusta ei tallenneta,
+// joten pianorolliin tulee tasavälinen rivi jonka rytmin teet itse.
+
+const PPQ        = 480;   // tickiä neljäsosanuottia kohden
+const NOTE_TICKS = 240;   // = kahdeksasosanuotti
+
+function vlq(n){                       // variable-length quantity
+  const out = [n & 0x7F];
+  n >>>= 7;
+  while (n > 0){ out.unshift((n & 0x7F) | 0x80); n >>>= 7; }
+  return out;
+}
+
+function buildMidi(notes){
+  const trk = [];
+  // tempo 120 BPM (500000 µs / neljäsosa) — FL korvaa tämän projektin tempolla
+  trk.push(0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20);
+  for (const m of notes){
+    const p = Math.max(0, Math.min(127, m));
+    trk.push(0x00, 0x90, p, 100);                        // note on
+    trk.push(...vlq(NOTE_TICKS), 0x80, p, 64);           // note off
+  }
+  trk.push(0x00, 0xFF, 0x2F, 0x00);                      // end of track
+
+  const n = trk.length;
+  const bytes = [
+    0x4D,0x54,0x68,0x64, 0,0,0,6,                        // MThd
+    0,0,                                                 // formaatti 0
+    0,1,                                                 // 1 raita
+    (PPQ >> 8) & 0xFF, PPQ & 0xFF,
+    0x4D,0x54,0x72,0x6B,                                 // MTrk
+    (n >>> 24) & 0xFF, (n >>> 16) & 0xFF, (n >>> 8) & 0xFF, n & 0xFF,
+    ...trk
+  ];
+  return new Uint8Array(bytes);
+}
+
+function slug(s){
+  return s.toLowerCase()
+          .replace(/ä/g,"a").replace(/ö/g,"o")
+          .replace(/[^a-z0-9]+/g,"-")
+          .replace(/^-|-$/g,"");
+}
+
+function fileName(){
+  const d = new Date();
+  const p = x => String(x).padStart(2,"0");
+  const stamp = p(d.getDate()) + p(d.getMonth()+1) + "-" + p(d.getHours()) + p(d.getMinutes());
+  return "luonnos-" + slug(NOTE_NAMES[state.root]) + "-" + slug(state.scale) + "-" + stamp + ".mid";
+}
+
+async function exportMidi(){
+  if (!seq.length) return;
+  const bytes = buildMidi(seq);
+  const name  = fileName();
+
+  // Ensisijaisesti Androidin jakovalikko: tiedosto suoraan Driveen tai sähköpostiin.
+  try {
+    const file = new File([bytes], name, { type:"audio/midi" });
+    if (navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title:name });
+      return;
+    }
+  } catch (err) {
+    if (err && err.name === "AbortError") return;   // käyttäjä perui jaon
+    // muut virheet: pudotaan lataukseen
+  }
+
+  const url = URL.createObjectURL(new Blob([bytes], { type:"audio/midi" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 /* ---------- nauhoitus ---------- */
-// Tallennetaan vain sävelten JÄRJESTYS. Ajoitusta ei kerätä lainkaan:
-// rytmi tehdään FL:n pianorollissa, joten sormen epätarkkuus ei siirry mukana.
 
 let armed = false;
 const seq = [];
@@ -237,6 +310,7 @@ const countEl  = document.getElementById("count");
 const recBtn   = document.getElementById("rec");
 const undoBtn  = document.getElementById("undo");
 const clearBtn = document.getElementById("clear");
+const expBtn   = document.getElementById("export");
 
 function capture(midi){
   if (!armed) return;
@@ -254,8 +328,9 @@ function drawSeq(){
   countEl.textContent = seq.length;
   notesEl.scrollLeft = notesEl.scrollWidth;
   stripEl.classList.toggle("show", armed || seq.length > 0);
-  undoBtn.disabled = seq.length === 0;
+  undoBtn.disabled  = seq.length === 0;
   clearBtn.disabled = seq.length === 0;
+  expBtn.disabled   = seq.length === 0;
 }
 
 recBtn.addEventListener("click", () => {
@@ -272,6 +347,8 @@ clearBtn.addEventListener("click", () => {
   seq.length = 0;
   drawSeq();
 });
+
+expBtn.addEventListener("click", exportMidi);
 
 // Sivun päivitys hukkaa otoksen, koska tallennusta ei vielä ole.
 window.addEventListener("beforeunload", e => {
@@ -306,18 +383,16 @@ function buildBoard(){
     });
     board.append(rowEl);
   }
-  // Näytössä alarivin ensimmäinen sävel, eli mistä koskettimisto alkaa.
   octNow.textContent = midiToName(12 * (state.octave + 1) + state.root);
   octDn.disabled = state.octave <= OCT_MIN;
   octUp.disabled = state.octave >= OCT_MAX;
 }
 
-// Molemmat rivit siirtyvät yhdessä, tasan yhden oktaavin kerrallaan.
 function shiftOctave(delta){
   const next = state.octave + delta;
   if (next < OCT_MIN || next > OCT_MAX) return;
   state.octave = next;
-  release();          // soiva sävel katkaistaan, se ei enää vastaa mitään kosketinta
+  release();
   buildBoard();
 }
 

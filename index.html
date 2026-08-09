@@ -115,7 +115,7 @@
   #export{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #export:disabled{border-color:var(--line);color:var(--key);}
 
-  /* ---- koskettimisto: kolme oktaavia päällekkäin ---- */
+  /* ---- koskettimisto ---- */
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
@@ -123,6 +123,7 @@
   }
   .row{flex:1 1 0;min-height:0;display:flex;gap:4px;}
   .key{
+    position:relative;
     flex:1 1 0;min-width:0;
     display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:2px;
@@ -133,6 +134,12 @@
   .key.on{background:var(--key-on);}
   .degree{font-size:clamp(14px,3vh,26px);font-weight:600;line-height:1;}
   .name{font-size:clamp(8px,1.4vh,11px);letter-spacing:.05em;opacity:.6;line-height:1;}
+  /* Näppäinvihje: näkyy vain kun laitteessa on tarkka osoitin, eli koneella. */
+  .kb{
+    position:absolute;top:4px;right:6px;
+    font-size:10px;font-weight:600;opacity:.3;line-height:1;
+  }
+  @media (pointer:coarse){ .kb{display:none;} }
 </style>
 </head>
 <body>
@@ -184,6 +191,14 @@ const SCALES = {
   "Blues":              [0,3,5,6,7,10]
 };
 
+// Näppäimistörivit ylimmästä alimpaan, sama järjestys kuin ruudulla.
+// Käytetään e.code -arvoja, eli fyysistä paikkaa — ei riipu näppäinasettelusta.
+const KB_ROWS = [
+  ["KeyQ","KeyW","KeyE","KeyR","KeyT","KeyY","KeyU"],
+  ["KeyA","KeyS","KeyD","KeyF","KeyG","KeyH","KeyJ"],
+  ["KeyZ","KeyX","KeyC","KeyV","KeyB","KeyN","KeyM"]
+];
+
 const ROWS    = 3;
 const OCT_MIN = 1, OCT_MAX = 5;
 
@@ -194,8 +209,6 @@ const midiToName = m => NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) -
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
 /* ---------- säilytys ---------- */
-// Nykyinen otos ja asetukset säilyvät sivun sulkemisen yli.
-// Ei listoja eikä nimiä: yksi otos kerrallaan, kuten pimputustyökalussa kuuluu.
 
 const STORE_KEY = "savelluonnos.v1";
 
@@ -282,8 +295,7 @@ function noteOff(){
 }
 
 /* ---------- toisto ---------- */
-// Sama nuottipituus kuin viennissä (kahdeksasosa @ 120 BPM),
-// eli kuulet tasan sen mikä pianorolliin päätyy.
+// Sama nuottipituus kuin viennissä (kahdeksasosa @ 120 BPM).
 
 const STEP = 0.25;
 
@@ -377,17 +389,19 @@ recBtn.addEventListener("click", () => {
   if (armed) stopPlay();
   recBtn.classList.toggle("armed", armed);
   recBtn.textContent = armed ? "Seis" : "Nauhoita";
+  recBtn.blur();                    // ettei väli-/enter-näppäin osu nappiin soiton aikana
   drawSeq();
 });
 
-playBtn.addEventListener("click", () => { isPlaying ? stopPlay() : startPlay(); });
-undoBtn.addEventListener("click", () => { stopPlay(); seq.pop(); drawSeq(); });
+playBtn.addEventListener("click", () => { isPlaying ? stopPlay() : startPlay(); playBtn.blur(); });
+undoBtn.addEventListener("click", () => { stopPlay(); seq.pop(); drawSeq(); undoBtn.blur(); });
 
 clearBtn.addEventListener("click", () => {
   if (seq.length && !confirm("Tyhjennetäänkö " + seq.length + " nuottia?")) return;
   stopPlay();
   seq.length = 0;
   drawSeq();
+  clearBtn.blur();
 });
 
 /* ---------- MIDI-vienti ---------- */
@@ -458,7 +472,7 @@ async function exportMidi(){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-expBtn.addEventListener("click", exportMidi);
+expBtn.addEventListener("click", () => { exportMidi(); expBtn.blur(); });
 
 /* ---------- koskettimisto ---------- */
 
@@ -467,11 +481,16 @@ const octNow = document.getElementById("octnow");
 const octUp  = document.getElementById("octup");
 const octDn  = document.getElementById("octdown");
 
+const codeToKey = new Map();   // näppäinkoodi -> kosketinelementti
+
 function buildBoard(){
   const steps = SCALES[state.scale];
   board.textContent = "";
+  codeToKey.clear();
+  lit = null;
 
-  for (let row = ROWS - 1; row >= 0; row--){        // korkein oktaavi ylimmäksi
+  let visRow = 0;                                   // 0 = ylin näkyvä rivi
+  for (let row = ROWS - 1; row >= 0; row--, visRow++){
     const rowEl = document.createElement("div");
     rowEl.className = "row";
     steps.forEach((step, i) => {
@@ -480,11 +499,22 @@ function buildBoard(){
       key.className = "key" + (step === 0 ? " tonic" : "");
       key.dataset.midi = midi;
       key.type = "button";
+      key.tabIndex = -1;                            // ei tab-kiertoon: näppäimistö soittaa, ei navigoi
+
       const d = document.createElement("span");
       d.className = "degree"; d.textContent = i + 1;
       const n = document.createElement("span");
       n.className = "name"; n.textContent = midiToName(midi);
       key.append(d, n);
+
+      // Sävellajissa voi olla 5, 6 tai 7 säveltä; ylimääräiset kirjaimet jäävät käyttämättä.
+      const code = KB_ROWS[visRow] && KB_ROWS[visRow][i];
+      if (code){
+        codeToKey.set(code, key);
+        const kb = document.createElement("span");
+        kb.className = "kb"; kb.textContent = code.slice(3);
+        key.append(kb);
+      }
       rowEl.append(key);
     });
     board.append(rowEl);
@@ -508,11 +538,12 @@ function shiftOctave(delta){
   if (next < OCT_MIN || next > OCT_MAX) return;
   state.octave = next;
   release();
+  allKeysUp();
   buildBoard();
 }
 
-octUp.addEventListener("click", () => shiftOctave(+1));
-octDn.addEventListener("click", () => shiftOctave(-1));
+octUp.addEventListener("click", () => { shiftOctave(+1); octUp.blur(); });
+octDn.addEventListener("click", () => { shiftOctave(-1); octDn.blur(); });
 
 let lit = null;
 function light(key){
@@ -522,10 +553,11 @@ function light(key){
   lit = key;
 }
 
-// Toiston aikana korostetaan kosketin jos se sattuu olemaan näkyvissä.
 function lightMidi(midi){
   light(midi === null ? null : board.querySelector('.key[data-midi="' + midi + '"]'));
 }
+
+/* ---------- kosketus ---------- */
 
 const keyAt = (x, y) => {
   const el = document.elementFromPoint(x, y);
@@ -536,7 +568,7 @@ let pressing = false;
 
 board.addEventListener("pointerdown", e => {
   e.preventDefault();
-  stopPlay();                 // koskettimen painallus keskeyttää toiston
+  stopPlay();
   pressing = true;
   board.setPointerCapture(e.pointerId);
   strike(e.clientX, e.clientY);
@@ -564,7 +596,62 @@ function release(){
 }
 window.addEventListener("pointerup", release);
 window.addEventListener("pointercancel", release);
-window.addEventListener("blur", release);
+
+/* ---------- fyysinen näppäimistö ---------- */
+// Yksiäänisyys säilyy: viimeksi painettu soi. Jos pidät useaa pohjassa ja
+// päästät soivan irti, ääni palaa edelliseen yhä pohjassa olevaan —
+// mutta sitä EI tallenneta uudestaan, koska et soittanut sitä uudelleen.
+
+const held = [];
+
+function keyDown(code){
+  const key = codeToKey.get(code);
+  if (!key || held.includes(code)) return;
+  held.push(code);
+  stopPlay();
+  const midi = Number(key.dataset.midi);
+  noteOn(midi);
+  capture(midi);
+  light(key);
+}
+
+function keyUp(code){
+  const i = held.indexOf(code);
+  if (i < 0) return;
+  held.splice(i, 1);
+  if (held.length){
+    const key = codeToKey.get(held[held.length - 1]);
+    if (key){
+      const midi = Number(key.dataset.midi);
+      if (midi !== playingNote){ noteOn(midi); light(key); }
+      return;
+    }
+  }
+  noteOff();
+  light(null);
+}
+
+function allKeysUp(){
+  held.length = 0;
+  noteOff();
+  light(null);
+}
+
+window.addEventListener("keydown", e => {
+  if (e.repeat) return;                                   // pohjassa pito ei toista nuottia
+  if (e.ctrlKey || e.altKey || e.metaKey) return;         // pikanäppäimet kuuluvat selaimelle
+  const tag = e.target && e.target.tagName;
+  if (tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA") return;
+
+  if (e.code === "ArrowUp")   { e.preventDefault(); shiftOctave(+1); return; }
+  if (e.code === "ArrowDown") { e.preventDefault(); shiftOctave(-1); return; }
+  if (codeToKey.has(e.code))  { e.preventDefault(); keyDown(e.code); }
+});
+
+window.addEventListener("keyup", e => keyUp(e.code));
+
+// Ikkunan menettäessä fokuksen mikään keyup ei tule perille — vapautetaan kaikki.
+window.addEventListener("blur", () => { release(); allKeysUp(); });
 
 /* ---------- ohjaimet ---------- */
 
@@ -574,8 +661,8 @@ const scaleSel = document.getElementById("scale");
 NOTE_NAMES.forEach((n, i) => rootSel.add(new Option(n, i)));
 Object.keys(SCALES).forEach(n => scaleSel.add(new Option(n, n)));
 
-rootSel.addEventListener("change",  e => { state.root  = Number(e.target.value); buildBoard(); });
-scaleSel.addEventListener("change", e => { state.scale = e.target.value;         buildBoard(); });
+rootSel.addEventListener("change",  e => { state.root  = Number(e.target.value); allKeysUp(); buildBoard(); e.target.blur(); });
+scaleSel.addEventListener("change", e => { state.scale = e.target.value;         allKeysUp(); buildBoard(); e.target.blur(); });
 
 document.addEventListener("pointerdown", wakeAudio, { once:true });
 

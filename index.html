@@ -35,7 +35,6 @@
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
-  /* ---- rivi 1: sävel, sävellaji, nauhoitus ---- */
   #bar{
     flex:0 0 auto;
     display:flex;align-items:center;gap:6px;
@@ -70,7 +69,6 @@
   #rec.armed{background:var(--rec);color:#fff;border-color:var(--rec);}
   #rec.armed::before{background:#fff;border-color:#fff;}
 
-  /* ---- rivi 2: oktaavisiirto ---- */
   #octrow{
     flex:0 0 auto;
     display:flex;align-items:stretch;
@@ -91,7 +89,6 @@
   #octnow b{font-weight:400;opacity:.45;}
   #octnow b.low{opacity:1;color:var(--tonic);}
 
-  /* ---- rivi 3: nuottinauha ---- */
   #strip{
     flex:0 0 auto;display:none;
     align-items:center;gap:6px;
@@ -115,7 +112,6 @@
   #export{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #export:disabled{border-color:var(--line);color:var(--key);}
 
-  /* ---- koskettimisto ---- */
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
@@ -134,11 +130,7 @@
   .key.on{background:var(--key-on);}
   .degree{font-size:clamp(14px,3vh,26px);font-weight:600;line-height:1;}
   .name{font-size:clamp(8px,1.4vh,11px);letter-spacing:.05em;opacity:.6;line-height:1;}
-  /* Näppäinvihje: näkyy vain kun laitteessa on tarkka osoitin, eli koneella. */
-  .kb{
-    position:absolute;top:4px;right:6px;
-    font-size:10px;font-weight:600;opacity:.3;line-height:1;
-  }
+  .kb{position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;opacity:.3;line-height:1;}
   @media (pointer:coarse){ .kb{display:none;} }
 </style>
 </head>
@@ -174,8 +166,6 @@
 
 const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
-// Sävellaji = puolisävelaskelten siirtymät juuriäänestä.
-// Uuden lisääminen = yksi rivi tähän, ei muutoksia muualle.
 const SCALES = {
   "Duuri":              [0,2,4,5,7,9,11],
   "Luonnollinen molli": [0,2,3,5,7,8,10],
@@ -191,8 +181,6 @@ const SCALES = {
   "Blues":              [0,3,5,6,7,10]
 };
 
-// Näppäimistörivit ylimmästä alimpaan, sama järjestys kuin ruudulla.
-// Käytetään e.code -arvoja, eli fyysistä paikkaa — ei riipu näppäinasettelusta.
 const KB_ROWS = [
   ["KeyQ","KeyW","KeyE","KeyR","KeyT","KeyY","KeyU"],
   ["KeyA","KeyS","KeyD","KeyF","KeyG","KeyH","KeyJ"],
@@ -244,54 +232,139 @@ function loadState(){
   }
 }
 
-/* ---------- ääni ---------- */
+/* ================================================================
+   ÄÄNI
 
-let ac = null, osc = null, amp = null, playingNote = null;
+   Kolmioaalto kuulosti 8-bittiseltä koska sen sointiväri ei muutu
+   ajassa: sama aaltomuoto samalla voimakkuudella niin kauan kuin
+   kosketin on pohjassa. Oikeassa soittimessa yläsävelet vaimenevat
+   perussäveltä nopeammin ja koko ääni kuolee itsestään.
+
+   Tässä jokainen nuotti rakennetaan useasta siniaallosta, joilla on
+   omat vaimenemisnopeutensa. Korkeat osaäänet katoavat ensin, joten
+   ääni pehmenee soidessaan. Se on koko ero.
+   ================================================================ */
+
+let ac = null, master = null, noiseBuf = null;
+
+// Osaäänet: kerroin perustaajuudesta, alkuvoimakkuus, vaimenemisen suhteellinen kesto.
+const PARTIALS = [
+  { mul:1, gain:1.00, decay:1.00 },
+  { mul:2, gain:0.38, decay:0.58 },
+  { mul:3, gain:0.17, decay:0.40 },
+  { mul:4, gain:0.09, decay:0.28 },
+  { mul:6, gain:0.04, decay:0.18 }
+];
+
+// Kielen jäykkyys venyttää yläsävelet hieman epäharmonisiksi.
+// Ilman tätä ääni on liian puhdas ja kuulostaa urulta.
+const INHARM = 0.0004;
+
+// Matalat sävelet soivat pitkään, korkeat lyhyesti — kuten pianossa.
+const noteLen = m => Math.min(5.0, Math.max(0.7, 5.0 * Math.pow(2, -(m - 45) / 26)));
 
 function wakeAudio(){
-  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  if (!ac){
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Kompressori pitää päällekkäin soivat nuotit kurissa toiston aikana.
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.ratio.value = 6;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.20;
+
+    master = ac.createGain();
+    master.gain.value = 0.5;
+    master.connect(comp).connect(ac.destination);
+
+    // Lyhyt kohinapuskuri vasaran iskuääntä varten.
+    noiseBuf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.05), ac.sampleRate);
+    const ch = noiseBuf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  }
   if (ac.state !== "running") ac.resume();
 }
 
-function voice(midi, at, dur){
-  const o = ac.createOscillator();
-  const g = ac.createGain();
-  o.type = "triangle";
-  o.frequency.setValueAtTime(midiToFreq(midi), at);
-  g.gain.setValueAtTime(0.0001, at);
-  g.gain.linearRampToValueAtTime(0.32, at + 0.008);
-  g.gain.linearRampToValueAtTime(0.18, at + dur * 0.70);
-  g.gain.linearRampToValueAtTime(0.0001, at + dur * 0.94);
-  o.connect(g).connect(ac.destination);
-  o.start(at);
-  o.stop(at + dur);
-  return o;
+// Yksi nuotti. Palauttaa kahvan jolla sen voi vaimentaa ennen aikojaan.
+function voice(midi, at){
+  const f0  = midiToFreq(midi);
+  const dur = noteLen(midi);
+
+  const out = ac.createGain();
+  out.gain.setValueAtTime(0.0001, at);
+  out.gain.linearRampToValueAtTime(1, at + 0.004);
+
+  // Sointi tummenee soidessaan.
+  const lp = ac.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.Q.value = 0.4;
+  lp.frequency.setValueAtTime(Math.min(11000, f0 * 9), at);
+  lp.frequency.exponentialRampToValueAtTime(Math.max(600, f0 * 2.5), at + dur * 0.55);
+
+  out.connect(lp).connect(master);
+
+  const nodes = [];
+
+  for (const p of PARTIALS){
+    const n       = p.mul;
+    const stretch = n * Math.sqrt(1 + INHARM * n * n);
+    const o = ac.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(f0 * stretch, at);
+
+    const g = ac.createGain();
+    g.gain.setValueAtTime(p.gain * 0.20, at);
+    g.gain.setTargetAtTime(0.0001, at + 0.004, Math.max(0.05, dur * p.decay * 0.32));
+
+    o.connect(g).connect(out);
+    o.start(at);
+    o.stop(at + dur + 0.3);
+    nodes.push(o);
+  }
+
+  // Vasaran isku: hyvin lyhyt suodatettu kohinapiikki. Antaa iskun
+  // jota pelkillä siniaalloilla ei saa.
+  const nz = ac.createBufferSource();
+  nz.buffer = noiseBuf;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = Math.min(6000, f0 * 5);
+  bp.Q.value = 0.8;
+  const ng = ac.createGain();
+  ng.gain.setValueAtTime(0.09, at);
+  ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.035);
+  nz.connect(bp).connect(ng).connect(out);
+  nz.start(at);
+  nz.stop(at + 0.06);
+  nodes.push(nz);
+
+  return { out, nodes };
 }
+
+// Elävä nuotti (koskettimen painallus). Yksiääninen: uusi katkaisee edellisen.
+let live = null, playingNote = null;
 
 function noteOn(midi){
   wakeAudio();
-  noteOff();
-  const t = ac.currentTime;
-  const o = ac.createOscillator();
-  const g = ac.createGain();
-  o.type = "triangle";
-  o.frequency.setValueAtTime(midiToFreq(midi), t);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.34, t + 0.008);
-  g.gain.linearRampToValueAtTime(0.20, t + 0.28);
-  o.connect(g).connect(ac.destination);
-  o.start(t);
-  osc = o; amp = g; playingNote = midi;
+  noteOff(0.12);
+  live = voice(midi, ac.currentTime);
+  playingNote = midi;
 }
 
-function noteOff(){
-  if (!osc) return;
+// Vaimennin: irtipäästö lopettaa äänen, muttei tylysti.
+function noteOff(fade){
+  if (!live) return;
   const t = ac.currentTime;
-  amp.gain.cancelScheduledValues(t);
-  amp.gain.setValueAtTime(amp.gain.value, t);
-  amp.gain.linearRampToValueAtTime(0.0001, t + 0.06);
-  osc.stop(t + 0.09);
-  osc = null; amp = null; playingNote = null;
+  const f = fade || 0.18;
+  try{
+    live.out.gain.cancelScheduledValues(t);
+    live.out.gain.setValueAtTime(live.out.gain.value, t);
+    live.out.gain.linearRampToValueAtTime(0.0001, t + f);
+    for (const n of live.nodes){ try{ n.stop(t + f + 0.02); }catch(e){} }
+  }catch(e){}
+  live = null;
+  playingNote = null;
 }
 
 /* ---------- toisto ---------- */
@@ -305,9 +378,9 @@ function startPlay(){
   if (!seq.length) return;
   stopPlay();
   wakeAudio();
-  noteOff();
-  playT0 = ac.currentTime + 0.08;
-  voices = seq.map((m, i) => voice(m, playT0 + i * STEP, STEP));
+  noteOff(0.05);
+  playT0 = ac.currentTime + 0.10;
+  voices = seq.map((m, i) => voice(m, playT0 + i * STEP));
   isPlaying = true;
   playBtn.classList.add("on");
   playBtn.innerHTML = "&#9632;";
@@ -318,7 +391,17 @@ function startPlay(){
 function stopPlay(){
   if (playRaf) cancelAnimationFrame(playRaf);
   playRaf = 0;
-  for (const v of voices){ try{ v.stop(); }catch(e){} }
+  if (voices.length && ac){
+    const t = ac.currentTime;
+    for (const v of voices){
+      try{
+        v.out.gain.cancelScheduledValues(t);
+        v.out.gain.setValueAtTime(v.out.gain.value, t);
+        v.out.gain.linearRampToValueAtTime(0.0001, t + 0.06);
+        for (const n of v.nodes){ try{ n.stop(t + 0.08); }catch(e){} }
+      }catch(e){}
+    }
+  }
   voices = [];
   if (!isPlaying) return;
   isPlaying = false;
@@ -389,7 +472,7 @@ recBtn.addEventListener("click", () => {
   if (armed) stopPlay();
   recBtn.classList.toggle("armed", armed);
   recBtn.textContent = armed ? "Seis" : "Nauhoita";
-  recBtn.blur();                    // ettei väli-/enter-näppäin osu nappiin soiton aikana
+  recBtn.blur();
   drawSeq();
 });
 
@@ -481,7 +564,9 @@ const octNow = document.getElementById("octnow");
 const octUp  = document.getElementById("octup");
 const octDn  = document.getElementById("octdown");
 
-const codeToKey = new Map();   // näppäinkoodi -> kosketinelementti
+const codeToKey = new Map();
+
+let lit = null;
 
 function buildBoard(){
   const steps = SCALES[state.scale];
@@ -499,7 +584,7 @@ function buildBoard(){
       key.className = "key" + (step === 0 ? " tonic" : "");
       key.dataset.midi = midi;
       key.type = "button";
-      key.tabIndex = -1;                            // ei tab-kiertoon: näppäimistö soittaa, ei navigoi
+      key.tabIndex = -1;
 
       const d = document.createElement("span");
       d.className = "degree"; d.textContent = i + 1;
@@ -545,7 +630,6 @@ function shiftOctave(delta){
 octUp.addEventListener("click", () => { shiftOctave(+1); octUp.blur(); });
 octDn.addEventListener("click", () => { shiftOctave(-1); octDn.blur(); });
 
-let lit = null;
 function light(key){
   if (lit === key) return;
   if (lit) lit.classList.remove("on");
@@ -639,7 +723,7 @@ function allKeysUp(){
 
 window.addEventListener("keydown", e => {
   if (e.repeat) return;                                   // pohjassa pito ei toista nuottia
-  if (e.ctrlKey || e.altKey || e.metaKey) return;         // pikanäppäimet kuuluvat selaimelle
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
   const tag = e.target && e.target.tagName;
   if (tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA") return;
 

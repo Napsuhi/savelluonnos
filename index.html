@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0E1116">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Sävelluonnos</title>
 <style>
   :root{
@@ -44,8 +46,7 @@
   #bar label{
     display:flex;align-items:center;gap:4px;
     font-size:9px;letter-spacing:.08em;text-transform:uppercase;
-    white-space:nowrap;
-    min-width:0;
+    white-space:nowrap;min-width:0;
   }
   select,button{
     font-family:var(--mono);
@@ -69,7 +70,7 @@
   #rec.armed{background:var(--rec);color:#fff;border-color:var(--rec);}
   #rec.armed::before{background:#fff;border-color:#fff;}
 
-  /* ---- rivi 2: oktaavisiirto, oma rivinsä ---- */
+  /* ---- rivi 2: oktaavisiirto ---- */
   #octrow{
     flex:0 0 auto;
     display:flex;align-items:stretch;
@@ -77,18 +78,15 @@
     border-bottom:1px solid var(--line);
   }
   #octrow button{
-    flex:0 0 auto;
-    border:none;border-radius:0;background:transparent;
-    padding:8px 24px;font-size:15px;line-height:1;
-    color:var(--key);
+    flex:0 0 auto;border:none;border-radius:0;background:transparent;
+    padding:8px 24px;font-size:15px;line-height:1;color:var(--key);
   }
   #octrow button:active:not(:disabled){background:var(--line);}
   #octnow{
     flex:1 1 auto;
     display:flex;align-items:center;justify-content:center;gap:10px;
     font-size:12px;letter-spacing:.08em;color:var(--key);
-    border-left:1px solid var(--line);
-    border-right:1px solid var(--line);
+    border-left:1px solid var(--line);border-right:1px solid var(--line);
   }
   #octnow b{font-weight:400;opacity:.45;}
   #octnow b.low{opacity:1;color:var(--tonic);}
@@ -96,7 +94,7 @@
   /* ---- rivi 3: nuottinauha ---- */
   #strip{
     flex:0 0 auto;display:none;
-    align-items:center;gap:8px;
+    align-items:center;gap:6px;
     padding:0 8px;height:34px;
     background:#0B0E12;
     border-bottom:1px solid var(--line);
@@ -110,8 +108,10 @@
   }
   #notes::-webkit-scrollbar{display:none;}
   #notes span{padding-right:9px;}
-  #notes span:last-child{color:var(--key-on);}
+  #notes span.cursor{color:var(--key-on);}
   #strip button{flex:0 0 auto;padding:4px 7px;font-size:11px;}
+  #play{min-width:30px;text-align:center;}
+  #play.on{border-color:var(--key-on);color:var(--key-on);}
   #export{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #export:disabled{border-color:var(--line);color:var(--key);}
 
@@ -152,9 +152,10 @@
 <div id="strip">
   <span id="count">0</span>
   <div id="notes"></div>
-  <button id="undo" type="button" disabled>Kumoa</button>
-  <button id="clear" type="button" disabled>Tyhjennä</button>
-  <button id="export" type="button" disabled>Vie MIDI</button>
+  <button id="play"   type="button" aria-label="Toista" disabled>&#9654;</button>
+  <button id="undo"   type="button" disabled>Kumoa</button>
+  <button id="clear"  type="button" disabled>Tyhjennä</button>
+  <button id="export" type="button" disabled>Vie</button>
 </div>
 
 <div id="board"></div>
@@ -183,22 +184,75 @@ const SCALES = {
   "Blues":              [0,3,5,6,7,10]
 };
 
-const ROWS    = 3;              // näkyvien oktaavien määrä
-const OCT_MIN = 1;
-const OCT_MAX = 5;              // ylin rivi on tällöin oktaavi 7 — MIDI-alueen sisällä
+const ROWS    = 3;
+const OCT_MIN = 1, OCT_MAX = 5;
 
 const state = { root:0, scale:"Duuri", octave:3 };
+const seq   = [];
 
 const midiToName = m => NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
+/* ---------- säilytys ---------- */
+// Nykyinen otos ja asetukset säilyvät sivun sulkemisen yli.
+// Ei listoja eikä nimiä: yksi otos kerrallaan, kuten pimputustyökalussa kuuluu.
+
+const STORE_KEY = "savelluonnos.v1";
+
+function saveState(){
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      seq: seq, root: state.root, scale: state.scale, octave: state.octave
+    }));
+  }catch(err){ /* täysi tai estetty tallennus: jatketaan ilman */ }
+}
+
+function loadState(){
+  let raw = null;
+  try{ raw = localStorage.getItem(STORE_KEY); }catch(err){ return; }
+  if (!raw) return;
+  try{
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== "object" || Array.isArray(d)) throw new Error("muoto");
+
+    // Jokainen arvo tarkistetaan erikseen: vioittunut tai muokattu
+    // tallennus ei saa päätyä sellaisenaan käyttöön.
+    if (Array.isArray(d.seq)){
+      for (const m of d.seq){
+        if (Number.isInteger(m) && m >= 0 && m <= 127) seq.push(m);
+      }
+    }
+    if (Number.isInteger(d.root) && d.root >= 0 && d.root < 12) state.root = d.root;
+    if (typeof d.scale === "string" && Object.prototype.hasOwnProperty.call(SCALES, d.scale)) state.scale = d.scale;
+    if (Number.isInteger(d.octave) && d.octave >= OCT_MIN && d.octave <= OCT_MAX) state.octave = d.octave;
+  }catch(err){
+    seq.length = 0;
+    try{ localStorage.removeItem(STORE_KEY); }catch(e){}
+  }
+}
+
 /* ---------- ääni ---------- */
 
-let ac = null, osc = null, amp = null, playing = null;
+let ac = null, osc = null, amp = null, playingNote = null;
 
 function wakeAudio(){
   if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
   if (ac.state !== "running") ac.resume();
+}
+
+function voice(midi, at, dur){
+  const o = ac.createOscillator();
+  const g = ac.createGain();
+  o.type = "triangle";
+  o.frequency.setValueAtTime(midiToFreq(midi), at);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.linearRampToValueAtTime(0.32, at + 0.008);
+  g.gain.linearRampToValueAtTime(0.18, at + dur * 0.70);
+  g.gain.linearRampToValueAtTime(0.0001, at + dur * 0.94);
+  o.connect(g).connect(ac.destination);
+  o.start(at);
+  o.stop(at + dur);
+  return o;
 }
 
 function noteOn(midi){
@@ -214,7 +268,7 @@ function noteOn(midi){
   g.gain.linearRampToValueAtTime(0.20, t + 0.28);
   o.connect(g).connect(ac.destination);
   o.start(t);
-  osc = o; amp = g; playing = midi;
+  osc = o; amp = g; playingNote = midi;
 }
 
 function noteOff(){
@@ -224,15 +278,123 @@ function noteOff(){
   amp.gain.setValueAtTime(amp.gain.value, t);
   amp.gain.linearRampToValueAtTime(0.0001, t + 0.06);
   osc.stop(t + 0.09);
-  osc = null; amp = null; playing = null;
+  osc = null; amp = null; playingNote = null;
 }
 
-/* ---------- MIDI-kirjoitin ---------- */
+/* ---------- toisto ---------- */
+// Sama nuottipituus kuin viennissä (kahdeksasosa @ 120 BPM),
+// eli kuulet tasan sen mikä pianorolliin päätyy.
+
+const STEP = 0.25;
+
+let voices = [], playT0 = 0, playRaf = 0, isPlaying = false;
+
+function startPlay(){
+  if (!seq.length) return;
+  stopPlay();
+  wakeAudio();
+  noteOff();
+  playT0 = ac.currentTime + 0.08;
+  voices = seq.map((m, i) => voice(m, playT0 + i * STEP, STEP));
+  isPlaying = true;
+  playBtn.classList.add("on");
+  playBtn.innerHTML = "&#9632;";
+  playBtn.setAttribute("aria-label", "Pysäytä");
+  tickPlay();
+}
+
+function stopPlay(){
+  if (playRaf) cancelAnimationFrame(playRaf);
+  playRaf = 0;
+  for (const v of voices){ try{ v.stop(); }catch(e){} }
+  voices = [];
+  if (!isPlaying) return;
+  isPlaying = false;
+  playBtn.classList.remove("on");
+  playBtn.innerHTML = "&#9654;";
+  playBtn.setAttribute("aria-label", "Toista");
+  markCursor(-1);
+}
+
+function tickPlay(){
+  const i = Math.floor((ac.currentTime - playT0) / STEP);
+  if (i >= seq.length){ stopPlay(); return; }
+  markCursor(i);
+  playRaf = requestAnimationFrame(tickPlay);
+}
+
+function markCursor(i){
+  const spans = notesEl.children;
+  for (let k = 0; k < spans.length; k++) spans[k].classList.toggle("cursor", k === i);
+  if (i >= 0){
+    const s = spans[i];
+    if (s) s.scrollIntoView({ block:"nearest", inline:"nearest" });
+    lightMidi(seq[i]);
+  } else {
+    lightMidi(null);
+  }
+}
+
+/* ---------- nauhoitus ---------- */
+
+let armed = false;
+
+const stripEl  = document.getElementById("strip");
+const notesEl  = document.getElementById("notes");
+const countEl  = document.getElementById("count");
+const recBtn   = document.getElementById("rec");
+const playBtn  = document.getElementById("play");
+const undoBtn  = document.getElementById("undo");
+const clearBtn = document.getElementById("clear");
+const expBtn   = document.getElementById("export");
+
+function capture(midi){
+  if (!armed) return;
+  seq.push(midi);
+  drawSeq();
+}
+
+function drawSeq(){
+  notesEl.textContent = "";
+  for (const m of seq){
+    const s = document.createElement("span");
+    s.textContent = midiToName(m);
+    notesEl.append(s);
+  }
+  if (!isPlaying) notesEl.scrollLeft = notesEl.scrollWidth;
+  countEl.textContent = seq.length;
+  stripEl.classList.toggle("show", armed || seq.length > 0);
+  const empty = seq.length === 0;
+  playBtn.disabled = empty;
+  undoBtn.disabled = empty;
+  clearBtn.disabled = empty;
+  expBtn.disabled = empty;
+  saveState();
+}
+
+recBtn.addEventListener("click", () => {
+  armed = !armed;
+  if (armed) stopPlay();
+  recBtn.classList.toggle("armed", armed);
+  recBtn.textContent = armed ? "Seis" : "Nauhoita";
+  drawSeq();
+});
+
+playBtn.addEventListener("click", () => { isPlaying ? stopPlay() : startPlay(); });
+undoBtn.addEventListener("click", () => { stopPlay(); seq.pop(); drawSeq(); });
+
+clearBtn.addEventListener("click", () => {
+  if (seq.length && !confirm("Tyhjennetäänkö " + seq.length + " nuottia?")) return;
+  stopPlay();
+  seq.length = 0;
+  drawSeq();
+});
+
+/* ---------- MIDI-vienti ---------- */
 // Standard MIDI File, formaatti 0, yksi raita.
 // Kaikki nuotit samanmittaisia ja peräkkäin: soiton ajoitusta ei tallenneta.
 
-const PPQ        = 480;   // tickiä neljäsosanuottia kohden
-const NOTE_TICKS = 240;   // = kahdeksasosanuotti
+const PPQ = 480, NOTE_TICKS = 240;
 
 function vlq(n){
   const out = [n & 0x7F];
@@ -254,8 +416,7 @@ function buildMidi(notes){
   const n = trk.length;
   return new Uint8Array([
     0x4D,0x54,0x68,0x64, 0,0,0,6,
-    0,0,
-    0,1,
+    0,0, 0,1,
     (PPQ >> 8) & 0xFF, PPQ & 0xFF,
     0x4D,0x54,0x72,0x6B,
     (n >>> 24) & 0xFF, (n >>> 16) & 0xFF, (n >>> 8) & 0xFF, n & 0xFF,
@@ -276,16 +437,17 @@ function fileName(){
 
 async function exportMidi(){
   if (!seq.length) return;
+  stopPlay();
   const bytes = buildMidi(seq);
   const name  = fileName();
 
-  try {
+  try{
     const file = new File([bytes], name, { type:"audio/midi" });
     if (navigator.canShare && navigator.canShare({ files:[file] })){
       await navigator.share({ files:[file], title:name });
       return;
     }
-  } catch (err) {
+  }catch(err){
     if (err && err.name === "AbortError") return;
   }
 
@@ -296,61 +458,7 @@ async function exportMidi(){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-/* ---------- nauhoitus ---------- */
-
-let armed = false;
-const seq = [];
-
-const stripEl  = document.getElementById("strip");
-const notesEl  = document.getElementById("notes");
-const countEl  = document.getElementById("count");
-const recBtn   = document.getElementById("rec");
-const undoBtn  = document.getElementById("undo");
-const clearBtn = document.getElementById("clear");
-const expBtn   = document.getElementById("export");
-
-function capture(midi){
-  if (!armed) return;
-  seq.push(midi);
-  drawSeq();
-}
-
-function drawSeq(){
-  notesEl.textContent = "";
-  for (const m of seq){
-    const s = document.createElement("span");
-    s.textContent = midiToName(m);
-    notesEl.append(s);
-  }
-  countEl.textContent = seq.length;
-  notesEl.scrollLeft = notesEl.scrollWidth;
-  stripEl.classList.toggle("show", armed || seq.length > 0);
-  undoBtn.disabled  = seq.length === 0;
-  clearBtn.disabled = seq.length === 0;
-  expBtn.disabled   = seq.length === 0;
-}
-
-recBtn.addEventListener("click", () => {
-  armed = !armed;
-  recBtn.classList.toggle("armed", armed);
-  recBtn.textContent = armed ? "Seis" : "Nauhoita";
-  drawSeq();
-});
-
-undoBtn.addEventListener("click", () => { seq.pop(); drawSeq(); });
-
-clearBtn.addEventListener("click", () => {
-  if (seq.length && !confirm("Tyhjennetäänkö " + seq.length + " nuottia?")) return;
-  seq.length = 0;
-  drawSeq();
-});
-
 expBtn.addEventListener("click", exportMidi);
-
-// Sivun päivitys hukkaa otoksen, koska tallennusta ei vielä ole.
-window.addEventListener("beforeunload", e => {
-  if (seq.length){ e.preventDefault(); e.returnValue = ""; }
-});
 
 /* ---------- koskettimisto ---------- */
 
@@ -363,8 +471,7 @@ function buildBoard(){
   const steps = SCALES[state.scale];
   board.textContent = "";
 
-  // Korkein oktaavi ylimmäksi: rivit ROWS-1 ... 0
-  for (let row = ROWS - 1; row >= 0; row--){
+  for (let row = ROWS - 1; row >= 0; row--){        // korkein oktaavi ylimmäksi
     const rowEl = document.createElement("div");
     rowEl.className = "row";
     steps.forEach((step, i) => {
@@ -383,7 +490,6 @@ function buildBoard(){
     board.append(rowEl);
   }
 
-  // Näytetään jokaisen rivin aloitussävel, ylin ensin — sama järjestys kuin ruudulla.
   octNow.textContent = "";
   for (let row = ROWS - 1; row >= 0; row--){
     const b = document.createElement("b");
@@ -394,9 +500,9 @@ function buildBoard(){
 
   octDn.disabled = state.octave <= OCT_MIN;
   octUp.disabled = state.octave >= OCT_MAX;
+  saveState();
 }
 
-// Kaikki rivit siirtyvät yhdessä, tasan yhden oktaavin kerrallaan.
 function shiftOctave(delta){
   const next = state.octave + delta;
   if (next < OCT_MIN || next > OCT_MAX) return;
@@ -416,6 +522,11 @@ function light(key){
   lit = key;
 }
 
+// Toiston aikana korostetaan kosketin jos se sattuu olemaan näkyvissä.
+function lightMidi(midi){
+  light(midi === null ? null : board.querySelector('.key[data-midi="' + midi + '"]'));
+}
+
 const keyAt = (x, y) => {
   const el = document.elementFromPoint(x, y);
   return el ? el.closest(".key") : null;
@@ -425,6 +536,7 @@ let pressing = false;
 
 board.addEventListener("pointerdown", e => {
   e.preventDefault();
+  stopPlay();                 // koskettimen painallus keskeyttää toiston
   pressing = true;
   board.setPointerCapture(e.pointerId);
   strike(e.clientX, e.clientY);
@@ -438,7 +550,7 @@ function strike(x, y){
   const key = keyAt(x, y);
   if (!key) return;
   const midi = Number(key.dataset.midi);
-  if (midi === playing) return;
+  if (midi === playingNote) return;
   noteOn(midi);
   capture(midi);
   light(key);
@@ -462,14 +574,14 @@ const scaleSel = document.getElementById("scale");
 NOTE_NAMES.forEach((n, i) => rootSel.add(new Option(n, i)));
 Object.keys(SCALES).forEach(n => scaleSel.add(new Option(n, n)));
 
-rootSel.value  = state.root;
-scaleSel.value = state.scale;
-
 rootSel.addEventListener("change",  e => { state.root  = Number(e.target.value); buildBoard(); });
 scaleSel.addEventListener("change", e => { state.scale = e.target.value;         buildBoard(); });
 
 document.addEventListener("pointerdown", wakeAudio, { once:true });
 
+loadState();
+rootSel.value  = state.root;
+scaleSel.value = state.scale;
 buildBoard();
 drawSeq();
 </script>

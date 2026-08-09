@@ -13,6 +13,7 @@
     --key:#D8DEE6;
     --key-on:#F2C14E;
     --tonic:#6FD3C0;
+    --rec:#E5484D;
     --ink:#0E1116;
     --text:#8D97A5;
     --mono:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
@@ -35,79 +36,123 @@
   /* ---- ohjauspalkki ---- */
   #bar{
     flex:0 0 auto;
-    display:flex;align-items:center;gap:8px;
-    padding:6px 10px;
+    display:flex;align-items:center;gap:6px;
+    padding:5px 8px;
     background:var(--panel);
     border-bottom:1px solid var(--line);
   }
   #bar label{
-    display:flex;align-items:center;gap:5px;
-    font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+    display:flex;align-items:center;gap:4px;
+    font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+    white-space:nowrap;
   }
-  select{
-    font-family:var(--mono);font-size:13px;
+  select,button{
+    font-family:var(--mono);
     background:#0B0E12;color:var(--key);
     border:1px solid var(--line);border-radius:5px;
-    padding:5px 6px;
-    appearance:none;-webkit-appearance:none;
+    padding:5px 7px;font-size:12px;
   }
-  select:focus-visible{outline:2px solid var(--tonic);outline-offset:1px;}
-  #hint{margin-left:auto;font-size:10px;letter-spacing:.06em;opacity:.55;}
+  select{appearance:none;-webkit-appearance:none;max-width:120px;}
+  button{cursor:pointer;white-space:nowrap;}
+  button:disabled{opacity:.3;}
+  select:focus-visible,button:focus-visible{outline:2px solid var(--tonic);outline-offset:1px;}
+
+  /* ---- oktaavisiirto ---- */
+  #octbox{
+    display:flex;align-items:center;
+    border:1px solid var(--line);border-radius:5px;
+    background:#0B0E12;overflow:hidden;
+  }
+  #octbox button{
+    border:none;border-radius:0;
+    padding:5px 11px;font-size:14px;line-height:1;
+    background:transparent;
+  }
+  #octbox button:active:not(:disabled){ background:var(--line); }
+  #octnow{
+    min-width:34px;text-align:center;
+    font-size:12px;color:var(--key);
+    border-left:1px solid var(--line);
+    border-right:1px solid var(--line);
+    padding:5px 4px;
+  }
+
+  #tools{margin-left:auto;display:flex;align-items:center;gap:6px;}
+  #rec{
+    border-color:var(--rec);color:var(--rec);
+    font-weight:600;letter-spacing:.06em;
+    display:flex;align-items:center;gap:6px;
+  }
+  #rec::before{
+    content:"";width:9px;height:9px;border-radius:50%;
+    border:1.5px solid var(--rec);
+  }
+  #rec.armed{ background:var(--rec);color:#fff;border-color:var(--rec); }
+  #rec.armed::before{ background:#fff;border-color:#fff; }
+  #hint{font-size:9px;letter-spacing:.05em;opacity:.5;max-width:70px;line-height:1.15;}
   @media (orientation:landscape){ #hint{display:none;} }
+  @media (pointer:fine){ #hint{display:none;} }
+
+  /* ---- nuottinauha ---- */
+  #strip{
+    flex:0 0 auto;display:none;
+    align-items:center;gap:8px;
+    padding:0 8px;height:28px;
+    background:#0B0E12;
+    border-bottom:1px solid var(--line);
+  }
+  #strip.show{display:flex;}
+  #count{flex:0 0 auto;font-size:10px;letter-spacing:.06em;color:var(--text);}
+  #notes{
+    flex:1 1 auto;min-width:0;
+    overflow-x:auto;overflow-y:hidden;white-space:nowrap;
+    font-size:12px;color:var(--key);scrollbar-width:none;
+  }
+  #notes::-webkit-scrollbar{display:none;}
+  #notes span{padding-right:9px;}
+  #notes span:last-child{color:var(--key-on);}
 
   /* ---- koskettimisto ---- */
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
-    padding:4px;
-    touch-action:none;
+    padding:4px;touch-action:none;
   }
-  .row{
-    flex:1 1 0;min-height:0;
-    display:flex;gap:4px;
-  }
+  .row{flex:1 1 0;min-height:0;display:flex;gap:4px;}
   .key{
     flex:1 1 0;min-width:0;
-    position:relative;
     display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    gap:2px;
-    background:var(--key);
-    color:var(--ink);
-    border:none;border-radius:6px;
-    padding:0;
+    align-items:center;justify-content:center;gap:2px;
+    background:var(--key);color:var(--ink);
+    border:none;border-radius:6px;padding:0;
   }
-  /* toonika: koko sävellajin nollapiste, aina heti tunnistettavissa */
-  .key.tonic{ box-shadow:inset 0 0 0 3px var(--tonic); }
-  .key.on{ background:var(--key-on); }
-  .degree{
-    font-size:clamp(15px,4.2vh,30px);
-    font-weight:600;line-height:1;
-  }
-  .name{
-    font-size:clamp(8px,1.8vh,12px);
-    letter-spacing:.05em;opacity:.6;line-height:1;
-  }
-  .row + .row{ position:relative; }
-  .row + .row::before{
-    content:"";position:absolute;left:0;right:0;top:-4px;height:1px;
-    background:var(--line);
-  }
+  .key.tonic{box-shadow:inset 0 0 0 3px var(--tonic);}
+  .key.on{background:var(--key-on);}
+  .degree{font-size:clamp(15px,4vh,30px);font-weight:600;line-height:1;}
+  .name{font-size:clamp(8px,1.7vh,12px);letter-spacing:.05em;opacity:.6;line-height:1;}
 </style>
 </head>
 <body>
 
 <div id="bar">
-  <label>Sävel
-    <select id="root"></select>
-  </label>
-  <label>Sävellaji
-    <select id="scale"></select>
-  </label>
-  <label>Oktaavi
-    <select id="oct"></select>
-  </label>
-  <span id="hint">Käännä puhelin vaakaan</span>
+  <label>Sävel <select id="root"></select></label>
+  <label>Sävellaji <select id="scale"></select></label>
+  <div id="octbox">
+    <button id="octdown" type="button" aria-label="Oktaavi alas">&#9660;</button>
+    <span id="octnow">C4</span>
+    <button id="octup" type="button" aria-label="Oktaavi ylös">&#9650;</button>
+  </div>
+  <div id="tools">
+    <span id="hint">Käännä vaakaan</span>
+    <button id="undo" type="button" disabled>Kumoa</button>
+    <button id="clear" type="button" disabled>Tyhjennä</button>
+    <button id="rec" type="button">Nauhoita</button>
+  </div>
+</div>
+
+<div id="strip">
+  <span id="count">0</span>
+  <div id="notes"></div>
 </div>
 
 <div id="board"></div>
@@ -122,19 +167,22 @@ const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 // Sävellaji = puolisävelaskelten siirtymät juuriäänestä.
 // Uuden lisääminen = yksi rivi tähän, ei muutoksia muualle.
 const SCALES = {
-  "Duuri":                [0,2,4,5,7,9,11],
-  "Luonnollinen molli":   [0,2,3,5,7,8,10],
-  "Harmoninen molli":     [0,2,3,5,7,8,11],
-  "Melodinen molli":      [0,2,3,5,7,9,11],
-  "Doorinen":             [0,2,3,5,7,9,10],
-  "Fryyginen":            [0,1,3,5,7,8,10],
-  "Lyydinen":             [0,2,4,6,7,9,11],
-  "Miksolyydinen":        [0,2,4,5,7,9,10],
-  "Lokrinen":             [0,1,3,5,6,8,10],
-  "Duuripentatoninen":    [0,2,4,7,9],
-  "Mollipentatoninen":    [0,3,5,7,10],
-  "Blues":                [0,3,5,6,7,10]
+  "Duuri":              [0,2,4,5,7,9,11],
+  "Luonnollinen molli": [0,2,3,5,7,8,10],
+  "Harmoninen molli":   [0,2,3,5,7,8,11],
+  "Melodinen molli":    [0,2,3,5,7,9,11],
+  "Doorinen":           [0,2,3,5,7,9,10],
+  "Fryyginen":          [0,1,3,5,7,8,10],
+  "Lyydinen":           [0,2,4,6,7,9,11],
+  "Miksolyydinen":      [0,2,4,5,7,9,10],
+  "Lokrinen":           [0,1,3,5,6,8,10],
+  "Duuripentatoninen":  [0,2,4,7,9],
+  "Mollipentatoninen":  [0,3,5,7,10],
+  "Blues":              [0,3,5,6,7,10]
 };
+
+// Alarivin oktaavi. Ylärivi on aina tämä + 1.
+const OCT_MIN = 1, OCT_MAX = 6;
 
 const state = { root:0, scale:"Duuri", octave:4 };
 
@@ -159,8 +207,8 @@ function noteOn(midi){
   o.type = "triangle";
   o.frequency.setValueAtTime(midiToFreq(midi), t);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.34, t + 0.008);   // attack
-  g.gain.linearRampToValueAtTime(0.20, t + 0.28);    // decay -> sustain
+  g.gain.linearRampToValueAtTime(0.34, t + 0.008);
+  g.gain.linearRampToValueAtTime(0.20, t + 0.28);
   o.connect(g).connect(ac.destination);
   o.start(t);
   osc = o; amp = g; playing = midi;
@@ -171,20 +219,76 @@ function noteOff(){
   const t = ac.currentTime;
   amp.gain.cancelScheduledValues(t);
   amp.gain.setValueAtTime(amp.gain.value, t);
-  amp.gain.linearRampToValueAtTime(0.0001, t + 0.06); // release
+  amp.gain.linearRampToValueAtTime(0.0001, t + 0.06);
   osc.stop(t + 0.09);
   osc = null; amp = null; playing = null;
 }
 
+/* ---------- nauhoitus ---------- */
+// Tallennetaan vain sävelten JÄRJESTYS. Ajoitusta ei kerätä lainkaan:
+// rytmi tehdään FL:n pianorollissa, joten sormen epätarkkuus ei siirry mukana.
+
+let armed = false;
+const seq = [];
+
+const stripEl  = document.getElementById("strip");
+const notesEl  = document.getElementById("notes");
+const countEl  = document.getElementById("count");
+const recBtn   = document.getElementById("rec");
+const undoBtn  = document.getElementById("undo");
+const clearBtn = document.getElementById("clear");
+
+function capture(midi){
+  if (!armed) return;
+  seq.push(midi);
+  drawSeq();
+}
+
+function drawSeq(){
+  notesEl.textContent = "";
+  for (const m of seq){
+    const s = document.createElement("span");
+    s.textContent = midiToName(m);
+    notesEl.append(s);
+  }
+  countEl.textContent = seq.length;
+  notesEl.scrollLeft = notesEl.scrollWidth;
+  stripEl.classList.toggle("show", armed || seq.length > 0);
+  undoBtn.disabled = seq.length === 0;
+  clearBtn.disabled = seq.length === 0;
+}
+
+recBtn.addEventListener("click", () => {
+  armed = !armed;
+  recBtn.classList.toggle("armed", armed);
+  recBtn.textContent = armed ? "Seis" : "Nauhoita";
+  drawSeq();
+});
+
+undoBtn.addEventListener("click", () => { seq.pop(); drawSeq(); });
+
+clearBtn.addEventListener("click", () => {
+  if (seq.length && !confirm("Tyhjennetäänkö " + seq.length + " nuottia?")) return;
+  seq.length = 0;
+  drawSeq();
+});
+
+// Sivun päivitys hukkaa otoksen, koska tallennusta ei vielä ole.
+window.addEventListener("beforeunload", e => {
+  if (seq.length){ e.preventDefault(); e.returnValue = ""; }
+});
+
 /* ---------- koskettimisto ---------- */
 
-const board = document.getElementById("board");
+const board  = document.getElementById("board");
+const octNow = document.getElementById("octnow");
+const octUp  = document.getElementById("octup");
+const octDn  = document.getElementById("octdown");
 
 function buildBoard(){
   const steps = SCALES[state.scale];
   board.textContent = "";
-  // ylempi oktaavi ylös: korkeampi sävel on ylempänä, kuten pianorollissa
-  for (const row of [1, 0]){
+  for (const row of [1, 0]){                 // korkeampi oktaavi ylös
     const rowEl = document.createElement("div");
     rowEl.className = "row";
     steps.forEach((step, i) => {
@@ -194,17 +298,31 @@ function buildBoard(){
       key.dataset.midi = midi;
       key.type = "button";
       const d = document.createElement("span");
-      d.className = "degree";
-      d.textContent = i + 1;
+      d.className = "degree"; d.textContent = i + 1;
       const n = document.createElement("span");
-      n.className = "name";
-      n.textContent = midiToName(midi);
+      n.className = "name"; n.textContent = midiToName(midi);
       key.append(d, n);
       rowEl.append(key);
     });
     board.append(rowEl);
   }
+  // Näytössä alarivin ensimmäinen sävel, eli mistä koskettimisto alkaa.
+  octNow.textContent = midiToName(12 * (state.octave + 1) + state.root);
+  octDn.disabled = state.octave <= OCT_MIN;
+  octUp.disabled = state.octave >= OCT_MAX;
 }
+
+// Molemmat rivit siirtyvät yhdessä, tasan yhden oktaavin kerrallaan.
+function shiftOctave(delta){
+  const next = state.octave + delta;
+  if (next < OCT_MIN || next > OCT_MAX) return;
+  state.octave = next;
+  release();          // soiva sävel katkaistaan, se ei enää vastaa mitään kosketinta
+  buildBoard();
+}
+
+octUp.addEventListener("click", () => shiftOctave(+1));
+octDn.addEventListener("click", () => shiftOctave(-1));
 
 let lit = null;
 function light(key){
@@ -214,10 +332,10 @@ function light(key){
   lit = key;
 }
 
-function keyAt(x, y){
+const keyAt = (x, y) => {
   const el = document.elementFromPoint(x, y);
   return el ? el.closest(".key") : null;
-}
+};
 
 let pressing = false;
 
@@ -234,10 +352,11 @@ board.addEventListener("pointermove", e => {
 
 function strike(x, y){
   const key = keyAt(x, y);
-  if (!key) return;                       // koskettimien välissä: pidetään edellinen sävel
+  if (!key) return;
   const midi = Number(key.dataset.midi);
-  if (midi === playing) return;           // sama kosketin: ei uudelleenlaukaisua
+  if (midi === playing) return;
   noteOn(midi);
+  capture(midi);
   light(key);
 }
 
@@ -255,24 +374,20 @@ window.addEventListener("blur", release);
 
 const rootSel  = document.getElementById("root");
 const scaleSel = document.getElementById("scale");
-const octSel   = document.getElementById("oct");
 
 NOTE_NAMES.forEach((n, i) => rootSel.add(new Option(n, i)));
 Object.keys(SCALES).forEach(n => scaleSel.add(new Option(n, n)));
-for (let o = 2; o <= 6; o++) octSel.add(new Option("C" + o, o));
 
 rootSel.value  = state.root;
 scaleSel.value = state.scale;
-octSel.value   = state.octave;
 
-rootSel.addEventListener("change",  e => { state.root   = Number(e.target.value); buildBoard(); });
-scaleSel.addEventListener("change", e => { state.scale  = e.target.value;         buildBoard(); });
-octSel.addEventListener("change",   e => { state.octave = Number(e.target.value); buildBoard(); });
+rootSel.addEventListener("change",  e => { state.root  = Number(e.target.value); buildBoard(); });
+scaleSel.addEventListener("change", e => { state.scale = e.target.value;         buildBoard(); });
 
-// Selain vaatii käyttäjän eleen ennen kuin ääni saa soida.
 document.addEventListener("pointerdown", wakeAudio, { once:true });
 
 buildBoard();
+drawSeq();
 </script>
 </body>
 </html>

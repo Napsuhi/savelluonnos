@@ -16,6 +16,7 @@
     --key-on:#F2C14E;
     --tonic:#6FD3C0;
     --rec:#E5484D;
+    --rest:#5C6675;
     --ink:#0E1116;
     --text:#8D97A5;
     --mono:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
@@ -35,6 +36,18 @@
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
+  select,button{
+    font-family:var(--mono);
+    background:#0B0E12;color:var(--key);
+    border:1px solid var(--line);border-radius:5px;
+    padding:5px 7px;font-size:12px;
+  }
+  select{appearance:none;-webkit-appearance:none;min-width:0;}
+  button{cursor:pointer;white-space:nowrap;}
+  button:disabled{opacity:.3;cursor:default;}
+  select:focus-visible,button:focus-visible{outline:2px solid var(--tonic);outline-offset:1px;}
+
+  /* ---- rivi 1 ---- */
   #bar{
     flex:0 0 auto;
     display:flex;align-items:center;gap:6px;
@@ -47,18 +60,7 @@
     font-size:9px;letter-spacing:.08em;text-transform:uppercase;
     white-space:nowrap;min-width:0;
   }
-  select,button{
-    font-family:var(--mono);
-    background:#0B0E12;color:var(--key);
-    border:1px solid var(--line);border-radius:5px;
-    padding:5px 7px;font-size:12px;
-  }
-  select{appearance:none;-webkit-appearance:none;min-width:0;}
   #scale{max-width:150px;text-overflow:ellipsis;}
-  button{cursor:pointer;white-space:nowrap;}
-  button:disabled{opacity:.3;cursor:default;}
-  select:focus-visible,button:focus-visible{outline:2px solid var(--tonic);outline-offset:1px;}
-
   #rec{
     margin-left:auto;
     border-color:var(--rec);color:var(--rec);
@@ -69,6 +71,7 @@
   #rec.armed{background:var(--rec);color:#fff;border-color:var(--rec);}
   #rec.armed::before{background:#fff;border-color:#fff;}
 
+  /* ---- rivi 2: oktaavi ---- */
   #octrow{
     flex:0 0 auto;
     display:flex;align-items:stretch;
@@ -77,7 +80,7 @@
   }
   #octrow button{
     flex:0 0 auto;border:none;border-radius:0;background:transparent;
-    padding:8px 24px;font-size:15px;line-height:1;color:var(--key);
+    padding:7px 24px;font-size:15px;line-height:1;color:var(--key);
   }
   #octrow button:active:not(:disabled){background:var(--line);}
   #octnow{
@@ -89,7 +92,28 @@
   #octnow b{font-weight:400;opacity:.45;}
   #octnow b.low{opacity:1;color:var(--tonic);}
 
-  /* ---- nuottinauha: kaksi riviä, nuotit koko leveydeltä ---- */
+  /* ---- rivi 3: raidat ---- */
+  #trackrow{
+    flex:0 0 auto;
+    display:flex;align-items:stretch;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+  }
+  #trackrow button{
+    flex:1 1 0;min-width:0;
+    border:none;border-radius:0;background:transparent;
+    padding:6px 2px;font-size:11px;line-height:1.25;
+    color:var(--text);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;gap:2px;
+  }
+  #trackrow button:last-child{border-right:none;}
+  #trackrow button b{font-weight:600;}
+  #trackrow button span{font-size:9px;opacity:.5;}
+  #trackrow button.on{background:#0B0E12;color:var(--tonic);}
+  #trackrow button.on span{opacity:.7;}
+
+  /* ---- nuottinauha ---- */
   #strip{
     flex:0 0 auto;display:none;flex-direction:column;
     background:#0B0E12;
@@ -99,7 +123,7 @@
 
   #striptop{
     display:flex;align-items:stretch;gap:8px;
-    padding:5px 8px 0;height:48px;
+    padding:5px 8px 0;height:50px;
   }
   #count{
     flex:0 0 auto;align-self:center;
@@ -112,33 +136,37 @@
     scrollbar-width:none;
   }
   #notes::-webkit-scrollbar{display:none;}
-  /* Koko nauhan korkuinen kosketuskohde: pystysuuntaan ei voi osua ohi. */
   #notes span.note{
     flex:0 0 auto;
-    display:flex;align-items:center;
-    padding:0 9px;border-radius:5px;
-    font-size:14px;color:var(--key);
-    cursor:pointer;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1px;
+    padding:0 6px;border-radius:5px;
+    color:var(--key);cursor:pointer;
   }
+  #notes span.note em{font-style:normal;font-size:14px;line-height:1;}
+  #notes span.note i{font-style:normal;font-size:9px;line-height:1;opacity:.4;letter-spacing:.04em;}
+  #notes span.note.rest em{color:var(--rest);}
   #notes span.note.sel{background:var(--line);color:var(--key-on);}
-  #notes span.note.playing{color:var(--key-on);}
-  #notes i.caret{
+  #notes span.note.sel i{opacity:.85;}
+  #notes span.note.playing em{color:var(--key-on);}
+  #notes b.caret{
     flex:0 0 auto;width:2px;align-self:stretch;
     margin:4px 0;border-radius:1px;
     background:var(--tonic);
   }
 
-  #stripbtns{
-    display:flex;align-items:center;gap:6px;
-    padding:6px 8px;
-  }
-  #stripbtns button{padding:7px 8px;font-size:12px;}
-  #play{flex:0 0 52px;text-align:center;}
+  .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
+  .btnrow:last-child{padding-bottom:6px;}
+  .btnrow button{padding:7px 6px;font-size:12px;flex:1 1 0;}
+  #shorter,#longer,#play{flex:0 0 46px;text-align:center;font-size:14px;line-height:1;}
   #play.on{border-color:var(--key-on);color:var(--key-on);}
-  #del,#clear,#export{flex:1 1 0;}
+  #rest{border-color:var(--rest);}
+  #mode{flex:0 0 92px;}
+  #mode.all{border-color:var(--tonic);color:var(--tonic);}
   #export{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #export:disabled{border-color:var(--line);color:var(--key);}
 
+  /* ---- koskettimisto ---- */
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
@@ -155,8 +183,8 @@
   }
   .key.tonic{box-shadow:inset 0 0 0 3px var(--tonic);}
   .key.on{background:var(--key-on);}
-  .degree{font-size:clamp(13px,2.6vh,24px);font-weight:600;line-height:1;}
-  .name{font-size:clamp(8px,1.3vh,11px);letter-spacing:.05em;opacity:.6;line-height:1;}
+  .degree{font-size:clamp(13px,2.4vh,24px);font-weight:600;line-height:1;}
+  .name{font-size:clamp(8px,1.2vh,11px);letter-spacing:.05em;opacity:.6;line-height:1;}
   .kb{position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;opacity:.3;line-height:1;}
   @media (pointer:coarse){ .kb{display:none;} }
 </style>
@@ -175,14 +203,22 @@
   <button id="octup" type="button" aria-label="Oktaavi ylös">&#9650;</button>
 </div>
 
+<div id="trackrow"></div>
+
 <div id="strip">
   <div id="striptop">
     <span id="count">0</span>
     <div id="notes"></div>
   </div>
-  <div id="stripbtns">
+  <div class="btnrow">
+    <button id="shorter" type="button" aria-label="Lyhennä" disabled>&#8722;</button>
+    <button id="longer"  type="button" aria-label="Pidennä" disabled>+</button>
+    <button id="rest"    type="button">Tauko</button>
+    <button id="del"     type="button" disabled>Poista</button>
+  </div>
+  <div class="btnrow">
     <button id="play"   type="button" aria-label="Toista" disabled>&#9654;</button>
-    <button id="del"    type="button" disabled>Poista</button>
+    <button id="mode"   type="button">Raita</button>
     <button id="clear"  type="button" disabled>Tyhjennä</button>
     <button id="export" type="button" disabled>Vie</button>
   </div>
@@ -221,26 +257,75 @@ const KB_ROWS = [
 const ROWS    = 3;
 const OCT_MIN = 1, OCT_MAX = 5;
 
-const state = { root:0, scale:"Duuri", octave:3 };
-const seq   = [];
+const LENS      = [0.5, 1, 2, 4];
+const LEN_LABEL = { 0.5:"½", 1:"1", 2:"2", 4:"4" };
 
-// Kirjoituskohdistin. Sijaitsee nuottien VÄLISSÄ, kuten tekstissä:
-// 0 = ennen ensimmäistä, seq.length = kaiken jälkeen.
-let cursor = 0;
+/* ---------- raidat ----------
+   Sama syntikkamoottori, eri asetukset. Ei ääninäytteitä, ei lisätiedostoja.
+   partials: [kerroin perustaajuudesta, alkuvoimakkuus, vaimenemisen suhde]      */
+
+const TRACKS = [
+  { key:"melodia", name:"Melodia", oct:3, tone:{
+      partials:[[1,1,.68],[2,.38,.40],[3,.17,.27],[4,.09,.19],[6,.04,.12]],
+      attack:0.004, len:5.0, lpOpen:9, lpClose:2.5, gain:0.20, hit:0.09 } },
+
+  { key:"basso",   name:"Basso",   oct:1, tone:{
+      partials:[[1,1,1.10],[2,.22,.70],[3,.07,.45]],
+      attack:0.006, len:6.0, lpOpen:5, lpClose:1.6, gain:0.30, hit:0.05 } },
+
+  { key:"soinnut", name:"Soinnut", oct:3, tone:{
+      partials:[[1,1,2.2],[2,.50,2.0],[3,.30,1.8],[4,.18,1.6],[5,.10,1.4]],
+      attack:0.110, len:6.0, lpOpen:4, lpClose:2.0, gain:0.13, hit:0.00 } },
+
+  { key:"arp",     name:"Arp",     oct:4, tone:{
+      partials:[[1,1,.26],[2,.50,.18],[3,.35,.13],[4,.20,.10],[6,.10,.07],[8,.05,.05]],
+      attack:0.002, len:2.2, lpOpen:12, lpClose:4.0, gain:0.18, hit:0.12 } }
+];
+
+// Jokaisella raidalla oma nuottijono ja oma kohdistin.
+// Alkio on joko { n:MIDI, d:pituus } tai tauko { r:true, d:pituus }.
+const lanes   = TRACKS.map(() => []);
+const cursors = TRACKS.map(() => 0);
+const octaves = TRACKS.map(t => t.oct);
+
+let active  = 0;
+let playAll = false;
+
+const state = { root:0, scale:"Duuri" };
+
+const seq    = () => lanes[active];
+const isRest = it => it && it.r === true;
 
 const midiToName = m => NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
 /* ---------- säilytys ---------- */
 
-const STORE_KEY = "savelluonnos.v1";
+const STORE_KEY = "savelluonnos.v1";   // sama avain, sisältö versioitu
 
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      seq: seq, root: state.root, scale: state.scale, octave: state.octave
+      v: 2,
+      lanes: lanes,
+      octaves: octaves,
+      active: active,
+      playAll: playAll,
+      root: state.root,
+      scale: state.scale
     }));
   }catch(err){ /* täysi tai estetty tallennus: jatketaan ilman */ }
+}
+
+// Jokainen arvo tarkistetaan erikseen: vioittunut tai muokattu
+// tallennus ei saa päätyä sellaisenaan käyttöön.
+function readItem(it){
+  if (Number.isInteger(it) && it >= 0 && it <= 127) return { n:it, d:1 };        // v0-muoto
+  if (!it || typeof it !== "object") return null;
+  const d = LENS.indexOf(it.d) >= 0 ? it.d : 1;
+  if (it.r === true) return { r:true, d:d };
+  if (Number.isInteger(it.n) && it.n >= 0 && it.n <= 127) return { n:it.n, d:d };
+  return null;
 }
 
 function loadState(){
@@ -251,56 +336,57 @@ function loadState(){
     const d = JSON.parse(raw);
     if (!d || typeof d !== "object" || Array.isArray(d)) throw new Error("muoto");
 
-    // Jokainen arvo tarkistetaan erikseen: vioittunut tai muokattu
-    // tallennus ei saa päätyä sellaisenaan käyttöön.
-    if (Array.isArray(d.seq)){
-      for (const m of d.seq){
-        if (Number.isInteger(m) && m >= 0 && m <= 127) seq.push(m);
+    if (Array.isArray(d.lanes)){
+      for (let t = 0; t < TRACKS.length; t++){
+        const src = d.lanes[t];
+        if (!Array.isArray(src)) continue;
+        for (const it of src){ const x = readItem(it); if (x) lanes[t].push(x); }
       }
+    } else if (Array.isArray(d.seq)){
+      // Aiempi yksiraitainen tallennus siirtyy Melodia-raidalle.
+      for (const it of d.seq){ const x = readItem(it); if (x) lanes[0].push(x); }
     }
+
+    if (Array.isArray(d.octaves)){
+      for (let t = 0; t < TRACKS.length; t++){
+        const o = d.octaves[t];
+        if (Number.isInteger(o) && o >= OCT_MIN && o <= OCT_MAX) octaves[t] = o;
+      }
+    } else if (Number.isInteger(d.octave) && d.octave >= OCT_MIN && d.octave <= OCT_MAX){
+      octaves[0] = d.octave;
+    }
+
+    if (Number.isInteger(d.active) && d.active >= 0 && d.active < TRACKS.length) active = d.active;
+    if (typeof d.playAll === "boolean") playAll = d.playAll;
     if (Number.isInteger(d.root) && d.root >= 0 && d.root < 12) state.root = d.root;
     if (typeof d.scale === "string" && Object.prototype.hasOwnProperty.call(SCALES, d.scale)) state.scale = d.scale;
-    if (Number.isInteger(d.octave) && d.octave >= OCT_MIN && d.octave <= OCT_MAX) state.octave = d.octave;
   }catch(err){
-    seq.length = 0;
+    for (const l of lanes) l.length = 0;
     try{ localStorage.removeItem(STORE_KEY); }catch(e){}
   }
-  cursor = seq.length;
+  for (let t = 0; t < TRACKS.length; t++) cursors[t] = lanes[t].length;
 }
 
 /* ================================================================
    ÄÄNI
-
-   Nuotti rakennetaan useasta siniaallosta, joilla on omat
-   vaimenemisnopeutensa. Korkeat osaäänet katoavat ensin, joten
-   ääni pehmenee soidessaan — se on ero staattiseen aaltomuotoon.
    ================================================================ */
 
 let ac = null, master = null, noiseBuf = null;
 
-const PARTIALS = [
-  { mul:1, gain:1.00, decay:1.00 },
-  { mul:2, gain:0.38, decay:0.58 },
-  { mul:3, gain:0.17, decay:0.40 },
-  { mul:4, gain:0.09, decay:0.28 },
-  { mul:6, gain:0.04, decay:0.18 }
-];
-
-const INHARM  = 0.0004;   // kielen jäykkyys venyttää yläsävelet
-const noteLen = m => Math.min(5.0, Math.max(0.7, 5.0 * Math.pow(2, -(m - 45) / 26)));
+const INHARM = 0.0004;
 
 function wakeAudio(){
   if (!ac){
     ac = new (window.AudioContext || window.webkitAudioContext)();
 
     const comp = ac.createDynamicsCompressor();
-    comp.threshold.value = -18;
-    comp.ratio.value = 6;
+    comp.threshold.value = -20;
+    comp.ratio.value = 7;
     comp.attack.value = 0.004;
     comp.release.value = 0.20;
 
     master = ac.createGain();
-    master.gain.value = 0.5;
+    master.gain.value = 0.45;
     master.connect(comp).connect(ac.destination);
 
     noiseBuf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.05), ac.sampleRate);
@@ -310,54 +396,67 @@ function wakeAudio(){
   if (ac.state !== "running") ac.resume();
 }
 
-function voice(midi, at){
+const toneLen = (tone, m) => Math.min(tone.len, Math.max(0.35, tone.len * Math.pow(2, -(m - 45) / 26)));
+
+// hold = kuinka pitkään nuotti pidetään. Jos luonnollinen vaimeneminen on
+// lyhyempi, hold jätetään huomiotta — pitkä nuotti ei keinotekoisesti veny.
+function voice(midi, at, hold, tone){
   const f0  = midiToFreq(midi);
-  const dur = noteLen(midi);
+  const dur = toneLen(tone, midi);
 
   const out = ac.createGain();
   out.gain.setValueAtTime(0.0001, at);
-  out.gain.linearRampToValueAtTime(1, at + 0.004);
+  out.gain.linearRampToValueAtTime(1, at + tone.attack);
+
+  let stopAt = at + dur + 0.3;
+  if (hold && hold + 0.12 < dur){
+    out.gain.setValueAtTime(1, at + hold);
+    out.gain.linearRampToValueAtTime(0.0001, at + hold + 0.10);
+    stopAt = at + hold + 0.16;
+  }
 
   const lp = ac.createBiquadFilter();
   lp.type = "lowpass";
   lp.Q.value = 0.4;
-  lp.frequency.setValueAtTime(Math.min(11000, f0 * 9), at);
-  lp.frequency.exponentialRampToValueAtTime(Math.max(600, f0 * 2.5), at + dur * 0.55);
+  lp.frequency.setValueAtTime(Math.min(12000, f0 * tone.lpOpen), at);
+  lp.frequency.exponentialRampToValueAtTime(Math.max(300, f0 * tone.lpClose), at + dur * 0.55);
 
   out.connect(lp).connect(master);
 
   const nodes = [];
 
-  for (const p of PARTIALS){
-    const n       = p.mul;
+  for (const p of tone.partials){
+    const n       = p[0];
     const stretch = n * Math.sqrt(1 + INHARM * n * n);
     const o = ac.createOscillator();
     o.type = "sine";
     o.frequency.setValueAtTime(f0 * stretch, at);
 
     const g = ac.createGain();
-    g.gain.setValueAtTime(p.gain * 0.20, at);
-    g.gain.setTargetAtTime(0.0001, at + 0.004, Math.max(0.05, dur * p.decay * 0.32));
+    g.gain.setValueAtTime(p[1] * tone.gain, at);
+    g.gain.setTargetAtTime(0.0001, at + tone.attack, Math.max(0.05, dur * p[2] * 0.32));
 
     o.connect(g).connect(out);
     o.start(at);
-    o.stop(at + dur + 0.3);
+    o.stop(stopAt);
     nodes.push(o);
   }
 
-  const nz = ac.createBufferSource();
-  nz.buffer = noiseBuf;
-  const bp = ac.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.frequency.value = Math.min(6000, f0 * 5);
-  bp.Q.value = 0.8;
-  const ng = ac.createGain();
-  ng.gain.setValueAtTime(0.09, at);
-  ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.035);
-  nz.connect(bp).connect(ng).connect(out);
-  nz.start(at);
-  nz.stop(at + 0.06);
-  nodes.push(nz);
+  if (tone.hit > 0){
+    const nz = ac.createBufferSource();
+    nz.buffer = noiseBuf;
+    const bp = ac.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = Math.min(6000, f0 * 5);
+    bp.Q.value = 0.8;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(tone.hit, at);
+    ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.035);
+    nz.connect(bp).connect(ng).connect(out);
+    nz.start(at);
+    nz.stop(at + 0.06);
+    nodes.push(nz);
+  }
 
   return { out, nodes };
 }
@@ -367,7 +466,7 @@ let live = null, playingNote = null;
 function noteOn(midi){
   wakeAudio();
   noteOff(0.12);
-  live = voice(midi, ac.currentTime);
+  live = voice(midi, ac.currentTime, 0, TRACKS[active].tone);
   playingNote = midi;
 }
 
@@ -385,25 +484,55 @@ function noteOff(fade){
   playingNote = null;
 }
 
-// Kertasoitto ilman "elävän nuotin" tilaa: käytetään nauhaa napautettaessa.
-function blip(midi){
+function blip(midi, trackIdx){
   wakeAudio();
-  voice(midi, ac.currentTime);
+  voice(midi, ac.currentTime, 0, TRACKS[trackIdx === undefined ? active : trackIdx].tone);
 }
 
 /* ---------- toisto ---------- */
 
-const STEP = 0.25;
+const STEP = 0.25;                 // pituuden 1 kesto sekunteina
 
-let voices = [], playT0 = 0, playRaf = 0, isPlaying = false;
+let voices = [], starts = [], playEnd = 0, playRaf = 0, isPlaying = false;
+
+function scheduleLane(t, at0){
+  const tone = TRACKS[t].tone;
+  let time = at0;
+  const marks = [];
+  for (const it of lanes[t]){
+    const len = STEP * it.d;
+    marks.push(time);
+    if (!isRest(it)) voices.push(voice(it.n, time, len, tone));
+    time += len;
+  }
+  return { end: time, marks: marks };
+}
 
 function startPlay(){
-  if (!seq.length) return;
+  const anything = playAll ? lanes.some(l => l.length) : seq().length;
+  if (!anything) return;
+
   stopPlay();
   wakeAudio();
   noteOff(0.05);
-  playT0 = ac.currentTime + 0.10;
-  voices = seq.map((m, i) => voice(m, playT0 + i * STEP));
+
+  const at0 = ac.currentTime + 0.12;
+  voices = [];
+  let end = at0;
+
+  if (playAll){
+    for (let t = 0; t < TRACKS.length; t++){
+      const r = scheduleLane(t, at0);
+      if (t === active) starts = r.marks;
+      if (r.end > end) end = r.end;
+    }
+  } else {
+    const r = scheduleLane(active, at0);
+    starts = r.marks;
+    end = r.end;
+  }
+
+  playEnd = end;
   isPlaying = true;
   playBtn.classList.add("on");
   playBtn.innerHTML = "&#9632;";
@@ -435,8 +564,10 @@ function stopPlay(){
 }
 
 function tickPlay(){
-  const i = Math.floor((ac.currentTime - playT0) / STEP);
-  if (i >= seq.length){ stopPlay(); return; }
+  const now = ac.currentTime;
+  if (now >= playEnd){ stopPlay(); return; }
+  let i = -1;
+  for (let k = 0; k < starts.length; k++){ if (now >= starts[k]) i = k; else break; }
   markPlay(i);
   playRaf = requestAnimationFrame(tickPlay);
 }
@@ -444,18 +575,17 @@ function tickPlay(){
 function markPlay(i){
   const spans = notesEl.querySelectorAll("span.note");
   for (let k = 0; k < spans.length; k++) spans[k].classList.toggle("playing", k === i);
-  if (i >= 0){
+  const it = i >= 0 ? seq()[i] : null;
+  if (it && !isRest(it)){
     const s = spans[i];
     if (s) s.scrollIntoView({ block:"nearest", inline:"nearest" });
-    lightMidi(seq[i]);
+    lightMidi(it.n);
   } else {
     lightMidi(null);
   }
 }
 
 /* ---------- nauha ja muokkaus ---------- */
-// Toimii kuin tekstirivi: kohdistin on nuottien välissä, uudet nuotit
-// syntyvät kohdistimen kohdalle ja Poista vie kohdistinta edeltävän.
 
 let armed = false;
 
@@ -464,69 +594,105 @@ const notesEl  = document.getElementById("notes");
 const countEl  = document.getElementById("count");
 const recBtn   = document.getElementById("rec");
 const playBtn  = document.getElementById("play");
+const modeBtn  = document.getElementById("mode");
+const shortBtn = document.getElementById("shorter");
+const longBtn  = document.getElementById("longer");
+const restBtn  = document.getElementById("rest");
 const delBtn   = document.getElementById("del");
 const clearBtn = document.getElementById("clear");
 const expBtn   = document.getElementById("export");
+const trackRow = document.getElementById("trackrow");
 
-function capture(midi){
-  if (!armed) return;
-  seq.splice(cursor, 0, midi);     // lisäys kohdistimen kohdalle, ei aina loppuun
-  cursor++;
+function insertAtCursor(item){
+  seq().splice(cursors[active], 0, item);
+  cursors[active]++;
   drawSeq();
 }
 
+function capture(midi){
+  if (!armed) return;
+  insertAtCursor({ n:midi, d:1 });
+}
+
 function deleteAtCursor(){
-  if (cursor === 0) return;
+  if (cursors[active] === 0) return;
   stopPlay();
-  seq.splice(cursor - 1, 1);
-  cursor--;
+  seq().splice(cursors[active] - 1, 1);
+  cursors[active]--;
+  drawSeq();
+}
+
+function changeLen(dir){
+  const c = cursors[active];
+  if (c === 0) return;
+  const it = seq()[c - 1];
+  let i = LENS.indexOf(it.d);
+  if (i < 0) i = 1;
+  const j = Math.max(0, Math.min(LENS.length - 1, i + dir));
+  if (j === i) return;
+  it.d = LENS[j];
+  stopPlay();
   drawSeq();
 }
 
 function drawSeq(){
-  if (cursor > seq.length) cursor = seq.length;
-  if (cursor < 0) cursor = 0;
+  const lane = seq();
+  if (cursors[active] > lane.length) cursors[active] = lane.length;
+  if (cursors[active] < 0) cursors[active] = 0;
+  const cur = cursors[active];
 
   notesEl.textContent = "";
   let caretEl = null;
 
-  for (let i = 0; i <= seq.length; i++){
-    if (i === cursor){
-      caretEl = document.createElement("i");
+  for (let i = 0; i <= lane.length; i++){
+    if (i === cur){
+      caretEl = document.createElement("b");
       caretEl.className = "caret";
       notesEl.append(caretEl);
     }
-    if (i === seq.length) break;
+    if (i === lane.length) break;
 
-    const s = document.createElement("span");
-    s.className = "note" + (i === cursor - 1 ? " sel" : "");
-    s.textContent = midiToName(seq[i]);
+    const it = lane[i];
+    const s  = document.createElement("span");
+    s.className = "note" + (isRest(it) ? " rest" : "") + (i === cur - 1 ? " sel" : "");
     s.dataset.i = i;
+    s.style.minWidth = (22 + 26 * it.d) + "px";
+
+    const nm = document.createElement("em");
+    nm.textContent = isRest(it) ? "–" : midiToName(it.n);
+    const ln = document.createElement("i");
+    ln.textContent = LEN_LABEL[it.d] || "1";
+    s.append(nm, ln);
     notesEl.append(s);
   }
 
   if (!isPlaying && caretEl) caretEl.scrollIntoView({ block:"nearest", inline:"nearest" });
 
-  countEl.textContent = seq.length;
-  stripEl.classList.toggle("show", armed || seq.length > 0);
-  const empty = seq.length === 0;
-  playBtn.disabled  = empty;
-  delBtn.disabled   = cursor === 0;
+  countEl.textContent = lane.length;
+  stripEl.classList.toggle("show", armed || lane.length > 0 || lanes.some(l => l.length));
+
+  const empty = lane.length === 0;
+  const sel   = cur > 0 ? lane[cur - 1] : null;
+  playBtn.disabled  = playAll ? !lanes.some(l => l.length) : empty;
+  delBtn.disabled   = cur === 0;
   clearBtn.disabled = empty;
-  expBtn.disabled   = empty;
+  expBtn.disabled   = playAll ? !lanes.some(l => l.length) : empty;
+  shortBtn.disabled = !sel || sel.d === LENS[0];
+  longBtn.disabled  = !sel || sel.d === LENS[LENS.length - 1];
+
+  drawTracks();
   saveState();
 }
 
 // Nauhan napautus etsii LÄHIMMÄN nuotin vaakasuunnassa, ei vaadi osumaa.
-// Näin ohi painaminen ei enää hyppää loppuun.
 notesEl.addEventListener("click", e => {
   stopPlay();
   const spans = notesEl.querySelectorAll("span.note");
-  if (!spans.length){ cursor = 0; drawSeq(); return; }
+  if (!spans.length){ cursors[active] = 0; drawSeq(); return; }
 
   const x = e.clientX;
   const first = spans[0].getBoundingClientRect();
-  if (x < first.left){ cursor = 0; drawSeq(); return; }   // ennen ensimmäistä
+  if (x < first.left){ cursors[active] = 0; drawSeq(); return; }
 
   let best = 0, bestD = Infinity;
   for (let i = 0; i < spans.length; i++){
@@ -536,8 +702,9 @@ notesEl.addEventListener("click", e => {
     if (d < bestD){ bestD = d; best = i; }
   }
 
-  cursor = best + 1;
-  blip(seq[best]);
+  cursors[active] = best + 1;
+  const it = seq()[best];
+  if (!isRest(it)) blip(it.n);
   drawSeq();
 });
 
@@ -550,23 +717,68 @@ recBtn.addEventListener("click", () => {
   drawSeq();
 });
 
-playBtn.addEventListener("click", () => { isPlaying ? stopPlay() : startPlay(); playBtn.blur(); });
-delBtn.addEventListener("click", () => { deleteAtCursor(); delBtn.blur(); });
+playBtn.addEventListener("click",  () => { isPlaying ? stopPlay() : startPlay(); playBtn.blur(); });
+shortBtn.addEventListener("click", () => { changeLen(-1); shortBtn.blur(); });
+longBtn.addEventListener("click",  () => { changeLen(+1); longBtn.blur(); });
+delBtn.addEventListener("click",   () => { deleteAtCursor(); delBtn.blur(); });
+
+// Tauko on nuotti ilman ääntä: vie tilaa ja siirtää seuraavia eteenpäin.
+restBtn.addEventListener("click", () => {
+  stopPlay();
+  insertAtCursor({ r:true, d:1 });
+  restBtn.blur();
+});
+
+modeBtn.addEventListener("click", () => {
+  stopPlay();
+  playAll = !playAll;
+  modeBtn.classList.toggle("all", playAll);
+  modeBtn.textContent = playAll ? "Kaikki" : "Raita";
+  modeBtn.blur();
+  drawSeq();
+});
 
 clearBtn.addEventListener("click", () => {
-  if (seq.length && !confirm("Tyhjennetäänkö " + seq.length + " nuottia?")) return;
+  const lane = seq();
+  if (lane.length && !confirm("Tyhjennetäänkö raita " + TRACKS[active].name + " (" + lane.length + " nuottia)?")) return;
   stopPlay();
-  seq.length = 0;
-  cursor = 0;
+  lane.length = 0;
+  cursors[active] = 0;
   drawSeq();
   clearBtn.blur();
 });
 
-/* ---------- MIDI-vienti ---------- */
-// Standard MIDI File, formaatti 0, yksi raita.
-// Kaikki nuotit samanmittaisia ja peräkkäin: soiton ajoitusta ei tallenneta.
+/* ---------- raitavalinta ---------- */
 
-const PPQ = 480, NOTE_TICKS = 240;
+function drawTracks(){
+  trackRow.textContent = "";
+  TRACKS.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = i === active ? "on" : "";
+    const nm = document.createElement("b");
+    nm.textContent = t.name;
+    const ct = document.createElement("span");
+    ct.textContent = lanes[i].length ? lanes[i].length : "–";
+    b.append(nm, ct);
+    b.addEventListener("click", () => {
+      if (i === active) return;
+      stopPlay();
+      allKeysUp();
+      active = i;
+      buildBoard();
+      drawSeq();
+      b.blur();
+    });
+    trackRow.append(b);
+  });
+}
+
+/* ---------- MIDI-vienti ---------- */
+// Yksi raita  -> formaatti 0.
+// Kaikki      -> formaatti 1, jokainen soitin omalle raidalleen FL:ssä.
+
+const PPQ = 480, BASE_TICKS = 240;   // BASE_TICKS = pituus 1 = kahdeksasosa
 
 function vlq(n){
   const out = [n & 0x7F];
@@ -575,25 +787,54 @@ function vlq(n){
   return out;
 }
 
-function buildMidi(notes){
-  const trk = [];
-  trk.push(0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20);   // tempo 120 BPM
-  for (const m of notes){
-    const p = Math.max(0, Math.min(127, m));
-    trk.push(0x00, 0x90, p, 100);
-    trk.push(...vlq(NOTE_TICKS), 0x80, p, 64);
-  }
-  trk.push(0x00, 0xFF, 0x2F, 0x00);
+function chunk(id, body){
+  const n = body.length;
+  return [
+    id.charCodeAt(0), id.charCodeAt(1), id.charCodeAt(2), id.charCodeAt(3),
+    (n >>> 24) & 0xFF, (n >>> 16) & 0xFF, (n >>> 8) & 0xFF, n & 0xFF
+  ].concat(body);
+}
 
-  const n = trk.length;
-  return new Uint8Array([
-    0x4D,0x54,0x68,0x64, 0,0,0,6,
-    0,0, 0,1,
-    (PPQ >> 8) & 0xFF, PPQ & 0xFF,
-    0x4D,0x54,0x72,0x6B,
-    (n >>> 24) & 0xFF, (n >>> 16) & 0xFF, (n >>> 8) & 0xFF, n & 0xFF,
-    ...trk
-  ]);
+function nameMeta(name){
+  const bytes = [];
+  for (const c of name) bytes.push(c.charCodeAt(0) & 0x7F);
+  return [0x00, 0xFF, 0x03].concat(vlq(bytes.length), bytes);
+}
+
+function laneEvents(lane, channel){
+  const ev = [];
+  let pending = 0;                       // taukojen kertymä seuraavaan nuottiin
+  for (const it of lane){
+    const ticks = Math.max(1, Math.round(BASE_TICKS * it.d));
+    if (isRest(it)){ pending += ticks; continue; }
+    const p = Math.max(0, Math.min(127, it.n));
+    ev.push.apply(ev, vlq(pending)); ev.push(0x90 | channel, p, 100);
+    ev.push.apply(ev, vlq(ticks));   ev.push(0x80 | channel, p, 64);
+    pending = 0;
+  }
+  ev.push(0x00, 0xFF, 0x2F, 0x00);
+  return ev;
+}
+
+function buildMidi(){
+  const tempo = [0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20];   // 120 BPM
+
+  if (!playAll){
+    const body = tempo.concat(nameMeta(TRACKS[active].name), laneEvents(seq(), 0));
+    return new Uint8Array(
+      chunk("MThd", [0,0, 0,1, (PPQ >> 8) & 0xFF, PPQ & 0xFF]).concat(chunk("MTrk", body))
+    );
+  }
+
+  const used = [];
+  for (let t = 0; t < TRACKS.length; t++) if (lanes[t].length) used.push(t);
+
+  let bytes = chunk("MThd", [0,1, 0, used.length + 1, (PPQ >> 8) & 0xFF, PPQ & 0xFF]);
+  bytes = bytes.concat(chunk("MTrk", tempo.concat(nameMeta("Savelluonnos"), [0x00,0xFF,0x2F,0x00])));
+  used.forEach((t, i) => {
+    bytes = bytes.concat(chunk("MTrk", nameMeta(TRACKS[t].name).concat(laneEvents(lanes[t], i & 0x0F))));
+  });
+  return new Uint8Array(bytes);
 }
 
 const slug = s => s.toLowerCase()
@@ -604,13 +845,13 @@ function fileName(){
   const d = new Date();
   const p = x => String(x).padStart(2,"0");
   const stamp = p(d.getDate()) + p(d.getMonth()+1) + "-" + p(d.getHours()) + p(d.getMinutes());
-  return "luonnos-" + slug(NOTE_NAMES[state.root]) + "-" + slug(state.scale) + "-" + stamp + ".mid";
+  const what  = playAll ? "kaikki" : slug(TRACKS[active].name);
+  return "luonnos-" + what + "-" + slug(NOTE_NAMES[state.root]) + "-" + slug(state.scale) + "-" + stamp + ".mid";
 }
 
 async function exportMidi(){
-  if (!seq.length) return;
   stopPlay();
-  const bytes = buildMidi(seq);
+  const bytes = buildMidi();
   const name  = fileName();
 
   try{
@@ -645,6 +886,7 @@ let lit = null;
 
 function buildBoard(){
   const steps = SCALES[state.scale];
+  const oct   = octaves[active];
   board.textContent = "";
   codeToKey.clear();
   lit = null;
@@ -654,7 +896,7 @@ function buildBoard(){
     const rowEl = document.createElement("div");
     rowEl.className = "row";
     steps.forEach((step, i) => {
-      const midi = 12 * (state.octave + 1) + state.root + step + 12 * row;
+      const midi = 12 * (oct + 1) + state.root + step + 12 * row;
       const key = document.createElement("button");
       key.className = "key" + (step === 0 ? " tonic" : "");
       key.dataset.midi = midi;
@@ -684,19 +926,20 @@ function buildBoard(){
   for (let row = ROWS - 1; row >= 0; row--){
     const b = document.createElement("b");
     if (row === 0) b.className = "low";
-    b.textContent = midiToName(12 * (state.octave + 1) + state.root + 12 * row);
+    b.textContent = midiToName(12 * (oct + 1) + state.root + 12 * row);
     octNow.append(b);
   }
 
-  octDn.disabled = state.octave <= OCT_MIN;
-  octUp.disabled = state.octave >= OCT_MAX;
+  octDn.disabled = oct <= OCT_MIN;
+  octUp.disabled = oct >= OCT_MAX;
   saveState();
 }
 
+// Oktaavi on raitakohtainen: basso pysyy matalalla vaikka melodia on ylhäällä.
 function shiftOctave(delta){
-  const next = state.octave + delta;
+  const next = octaves[active] + delta;
   if (next < OCT_MIN || next > OCT_MAX) return;
-  state.octave = next;
+  octaves[active] = next;
   release();
   allKeysUp();
   buildBoard();
@@ -794,7 +1037,11 @@ function allKeysUp(){
 }
 
 function auditionAtCursor(){
-  if (cursor > 0 && cursor <= seq.length) blip(seq[cursor - 1]);
+  const c = cursors[active];
+  if (c > 0 && c <= seq().length){
+    const it = seq()[c - 1];
+    if (!isRest(it)) blip(it.n);
+  }
 }
 
 window.addEventListener("keydown", e => {
@@ -805,11 +1052,20 @@ window.addEventListener("keydown", e => {
 
   if (e.code === "ArrowUp")    { e.preventDefault(); shiftOctave(+1); return; }
   if (e.code === "ArrowDown")  { e.preventDefault(); shiftOctave(-1); return; }
-
-  // Nuolet sivuille siirtävät kohdistinta, kuten tekstissä.
-  if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); cursor--; drawSeq(); auditionAtCursor(); return; }
-  if (e.code === "ArrowRight") { e.preventDefault(); stopPlay(); cursor++; drawSeq(); auditionAtCursor(); return; }
+  if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }
+  if (e.code === "ArrowRight") { e.preventDefault(); stopPlay(); cursors[active]++; drawSeq(); auditionAtCursor(); return; }
   if (e.code === "Backspace")  { e.preventDefault(); deleteAtCursor(); return; }
+  if (e.code === "Space")      { e.preventDefault(); stopPlay(); insertAtCursor({ r:true, d:1 }); return; }
+  if (e.code === "Minus" || e.code === "NumpadSubtract"){ e.preventDefault(); changeLen(-1); return; }
+  if (e.code === "Equal" || e.code === "NumpadAdd")     { e.preventDefault(); changeLen(+1); return; }
+
+  // 1-4 vaihtaa raitaa
+  if (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit3" || e.code === "Digit4"){
+    e.preventDefault();
+    const i = Number(e.code.slice(5)) - 1;
+    if (i !== active){ stopPlay(); allKeysUp(); active = i; buildBoard(); drawSeq(); }
+    return;
+  }
 
   if (codeToKey.has(e.code))   { e.preventDefault(); keyDown(e.code); }
 });
@@ -835,6 +1091,8 @@ document.addEventListener("pointerdown", wakeAudio, { once:true });
 loadState();
 rootSel.value  = state.root;
 scaleSel.value = state.scale;
+modeBtn.textContent = playAll ? "Kaikki" : "Raita";
+modeBtn.classList.toggle("all", playAll);
 buildBoard();
 drawSeq();
 </script>

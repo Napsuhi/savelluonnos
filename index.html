@@ -17,6 +17,7 @@
     --tonic:#6FD3C0;
     --rec:#E5484D;
     --rest:#5C6675;
+    --range:#1D3A38;
     --ink:#0E1116;
     --text:#8D97A5;
     --mono:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
@@ -47,7 +48,6 @@
   button:disabled{opacity:.3;cursor:default;}
   select:focus-visible,button:focus-visible{outline:2px solid var(--tonic);outline-offset:1px;}
 
-  /* ---- rivi 1 ---- */
   #bar{
     flex:0 0 auto;
     display:flex;align-items:center;gap:6px;
@@ -71,7 +71,6 @@
   #rec.armed{background:var(--rec);color:#fff;border-color:var(--rec);}
   #rec.armed::before{background:#fff;border-color:#fff;}
 
-  /* ---- rivi 2: oktaavi ---- */
   #octrow{
     flex:0 0 auto;
     display:flex;align-items:stretch;
@@ -80,7 +79,7 @@
   }
   #octrow button{
     flex:0 0 auto;border:none;border-radius:0;background:transparent;
-    padding:7px 24px;font-size:15px;line-height:1;color:var(--key);
+    padding:6px 24px;font-size:15px;line-height:1;color:var(--key);
   }
   #octrow button:active:not(:disabled){background:var(--line);}
   #octnow{
@@ -92,7 +91,6 @@
   #octnow b{font-weight:400;opacity:.45;}
   #octnow b.low{opacity:1;color:var(--tonic);}
 
-  /* ---- rivi 3: raidat ---- */
   #trackrow{
     flex:0 0 auto;
     display:flex;align-items:stretch;
@@ -102,10 +100,10 @@
   #trackrow button{
     flex:1 1 0;min-width:0;
     border:none;border-radius:0;background:transparent;
-    padding:6px 2px;font-size:11px;line-height:1.25;
+    padding:5px 2px;font-size:11px;line-height:1.25;
     color:var(--text);
     border-right:1px solid var(--line);
-    display:flex;flex-direction:column;align-items:center;gap:2px;
+    display:flex;flex-direction:column;align-items:center;gap:1px;
   }
   #trackrow button:last-child{border-right:none;}
   #trackrow button b{font-weight:600;}
@@ -113,7 +111,6 @@
   #trackrow button.on{background:#0B0E12;color:var(--tonic);}
   #trackrow button.on span{opacity:.7;}
 
-  /* ---- nuottinauha ---- */
   #strip{
     flex:0 0 auto;display:none;flex-direction:column;
     background:#0B0E12;
@@ -123,7 +120,7 @@
 
   #striptop{
     display:flex;align-items:stretch;gap:8px;
-    padding:5px 8px 0;height:50px;
+    padding:5px 8px 0;height:48px;
   }
   #count{
     flex:0 0 auto;align-self:center;
@@ -146,6 +143,7 @@
   #notes span.note em{font-style:normal;font-size:14px;line-height:1;}
   #notes span.note i{font-style:normal;font-size:9px;line-height:1;opacity:.4;letter-spacing:.04em;}
   #notes span.note.rest em{color:var(--rest);}
+  #notes span.note.range{background:var(--range);}
   #notes span.note.sel{background:var(--line);color:var(--key-on);}
   #notes span.note.sel i{opacity:.85;}
   #notes span.note.playing em{color:var(--key-on);}
@@ -157,16 +155,16 @@
 
   .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
   .btnrow:last-child{padding-bottom:6px;}
-  .btnrow button{padding:7px 6px;font-size:12px;flex:1 1 0;}
+  .btnrow button{padding:6px 5px;font-size:12px;flex:1 1 0;}
   #shorter,#longer,#play{flex:0 0 46px;text-align:center;font-size:14px;line-height:1;}
   #play.on{border-color:var(--key-on);color:var(--key-on);}
   #rest{border-color:var(--rest);}
-  #mode{flex:0 0 92px;}
+  #select.on{border-color:var(--tonic);color:var(--tonic);}
+  #mode{flex:0 0 86px;}
   #mode.all{border-color:var(--tonic);color:var(--tonic);}
   #export{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #export:disabled{border-color:var(--line);color:var(--key);}
 
-  /* ---- koskettimisto ---- */
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
@@ -183,8 +181,8 @@
   }
   .key.tonic{box-shadow:inset 0 0 0 3px var(--tonic);}
   .key.on{background:var(--key-on);}
-  .degree{font-size:clamp(13px,2.4vh,24px);font-weight:600;line-height:1;}
-  .name{font-size:clamp(8px,1.2vh,11px);letter-spacing:.05em;opacity:.6;line-height:1;}
+  .degree{font-size:clamp(12px,2.2vh,24px);font-weight:600;line-height:1;}
+  .name{font-size:clamp(8px,1.1vh,11px);letter-spacing:.05em;opacity:.6;line-height:1;}
   .kb{position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;opacity:.3;line-height:1;}
   @media (pointer:coarse){ .kb{display:none;} }
 </style>
@@ -217,10 +215,15 @@
     <button id="del"     type="button" disabled>Poista</button>
   </div>
   <div class="btnrow">
+    <button id="select" type="button" disabled>Valitse</button>
+    <button id="copy"   type="button" disabled>Kopioi</button>
+    <button id="paste"  type="button" disabled>Liitä</button>
+    <button id="clear"  type="button" disabled>Tyhjennä</button>
+  </div>
+  <div class="btnrow">
     <button id="play"   type="button" aria-label="Toista" disabled>&#9654;</button>
     <button id="mode"   type="button">Raita</button>
-    <button id="clear"  type="button" disabled>Tyhjennä</button>
-    <button id="export" type="button" disabled>Vie</button>
+    <button id="export" type="button" disabled>Vie MIDI</button>
   </div>
 </div>
 
@@ -260,9 +263,7 @@ const OCT_MIN = 1, OCT_MAX = 5;
 const LENS      = [0.5, 1, 2, 4];
 const LEN_LABEL = { 0.5:"½", 1:"1", 2:"2", 4:"4" };
 
-/* ---------- raidat ----------
-   Sama syntikkamoottori, eri asetukset. Ei ääninäytteitä, ei lisätiedostoja.
-   partials: [kerroin perustaajuudesta, alkuvoimakkuus, vaimenemisen suhde]      */
+/* ---------- raidat ---------- */
 
 const TRACKS = [
   { key:"melodia", name:"Melodia", oct:3, tone:{
@@ -282,8 +283,6 @@ const TRACKS = [
       attack:0.002, len:2.2, lpOpen:12, lpClose:4.0, gain:0.18, hit:0.12 } }
 ];
 
-// Jokaisella raidalla oma nuottijono ja oma kohdistin.
-// Alkio on joko { n:MIDI, d:pituus } tai tauko { r:true, d:pituus }.
 const lanes   = TRACKS.map(() => []);
 const cursors = TRACKS.map(() => 0);
 const octaves = TRACKS.map(t => t.oct);
@@ -291,28 +290,31 @@ const octaves = TRACKS.map(t => t.oct);
 let active  = 0;
 let playAll = false;
 
+// Valinta on raitakohtainen ja katoaa muokattaessa. Leikepöytä on yhteinen:
+// bassokuvion voi kopioida ja liittää toiselle raidalle.
+let selecting = false, anchor = -1, focus = -1;
+let clip = [];
+
 const state = { root:0, scale:"Duuri" };
 
 const seq    = () => lanes[active];
 const isRest = it => it && it.r === true;
+const hasSel = () => anchor >= 0 && focus >= 0;
+const selLo  = () => Math.min(anchor, focus);
+const selHi  = () => Math.max(anchor, focus);
 
 const midiToName = m => NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
 /* ---------- säilytys ---------- */
 
-const STORE_KEY = "savelluonnos.v1";   // sama avain, sisältö versioitu
+const STORE_KEY = "savelluonnos.v1";
 
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      v: 2,
-      lanes: lanes,
-      octaves: octaves,
-      active: active,
-      playAll: playAll,
-      root: state.root,
-      scale: state.scale
+      v:2, lanes:lanes, octaves:octaves, active:active,
+      playAll:playAll, root:state.root, scale:state.scale
     }));
   }catch(err){ /* täysi tai estetty tallennus: jatketaan ilman */ }
 }
@@ -320,7 +322,7 @@ function saveState(){
 // Jokainen arvo tarkistetaan erikseen: vioittunut tai muokattu
 // tallennus ei saa päätyä sellaisenaan käyttöön.
 function readItem(it){
-  if (Number.isInteger(it) && it >= 0 && it <= 127) return { n:it, d:1 };        // v0-muoto
+  if (Number.isInteger(it) && it >= 0 && it <= 127) return { n:it, d:1 };
   if (!it || typeof it !== "object") return null;
   const d = LENS.indexOf(it.d) >= 0 ? it.d : 1;
   if (it.r === true) return { r:true, d:d };
@@ -343,7 +345,6 @@ function loadState(){
         for (const it of src){ const x = readItem(it); if (x) lanes[t].push(x); }
       }
     } else if (Array.isArray(d.seq)){
-      // Aiempi yksiraitainen tallennus siirtyy Melodia-raidalle.
       for (const it of d.seq){ const x = readItem(it); if (x) lanes[0].push(x); }
     }
 
@@ -398,8 +399,6 @@ function wakeAudio(){
 
 const toneLen = (tone, m) => Math.min(tone.len, Math.max(0.35, tone.len * Math.pow(2, -(m - 45) / 26)));
 
-// hold = kuinka pitkään nuotti pidetään. Jos luonnollinen vaimeneminen on
-// lyhyempi, hold jätetään huomiotta — pitkä nuotti ei keinotekoisesti veny.
 function voice(midi, at, hold, tone){
   const f0  = midiToFreq(midi);
   const dur = toneLen(tone, midi);
@@ -484,14 +483,14 @@ function noteOff(fade){
   playingNote = null;
 }
 
-function blip(midi, trackIdx){
+function blip(midi){
   wakeAudio();
-  voice(midi, ac.currentTime, 0, TRACKS[trackIdx === undefined ? active : trackIdx].tone);
+  voice(midi, ac.currentTime, 0, TRACKS[active].tone);
 }
 
 /* ---------- toisto ---------- */
 
-const STEP = 0.25;                 // pituuden 1 kesto sekunteina
+const STEP = 0.25;
 
 let voices = [], starts = [], playEnd = 0, playRaf = 0, isPlaying = false;
 
@@ -599,11 +598,17 @@ const shortBtn = document.getElementById("shorter");
 const longBtn  = document.getElementById("longer");
 const restBtn  = document.getElementById("rest");
 const delBtn   = document.getElementById("del");
+const selBtn   = document.getElementById("select");
+const copyBtn  = document.getElementById("copy");
+const pasteBtn = document.getElementById("paste");
 const clearBtn = document.getElementById("clear");
 const expBtn   = document.getElementById("export");
 const trackRow = document.getElementById("trackrow");
 
+function clearSel(){ selecting = false; anchor = -1; focus = -1; }
+
 function insertAtCursor(item){
+  clearSel();
   seq().splice(cursors[active], 0, item);
   cursors[active]++;
   drawSeq();
@@ -614,24 +619,63 @@ function capture(midi){
   insertAtCursor({ n:midi, d:1 });
 }
 
+// Poista koskee valittua aluetta jos sellainen on, muuten kohdistinta edeltävää.
 function deleteAtCursor(){
-  if (cursors[active] === 0) return;
   stopPlay();
+  if (hasSel()){
+    const lo = selLo(), hi = selHi();
+    seq().splice(lo, hi - lo + 1);
+    cursors[active] = lo;
+    clearSel();
+    drawSeq();
+    return;
+  }
+  if (cursors[active] === 0) return;
   seq().splice(cursors[active] - 1, 1);
   cursors[active]--;
   drawSeq();
 }
 
+// Pituusmuutos koskee koko valintaa jos sellainen on.
 function changeLen(dir){
-  const c = cursors[active];
-  if (c === 0) return;
-  const it = seq()[c - 1];
-  let i = LENS.indexOf(it.d);
-  if (i < 0) i = 1;
-  const j = Math.max(0, Math.min(LENS.length - 1, i + dir));
-  if (j === i) return;
-  it.d = LENS[j];
+  const lane = seq();
+  const step = it => {
+    let i = LENS.indexOf(it.d);
+    if (i < 0) i = 1;
+    it.d = LENS[Math.max(0, Math.min(LENS.length - 1, i + dir))];
+  };
+  if (hasSel()){
+    for (let i = selLo(); i <= selHi(); i++) step(lane[i]);
+  } else {
+    if (cursors[active] === 0) return;
+    step(lane[cursors[active] - 1]);
+  }
   stopPlay();
+  drawSeq();
+}
+
+function doCopy(){
+  if (!hasSel()) return;
+  clip = seq().slice(selLo(), selHi() + 1).map(it => Object.assign({}, it));
+  cursors[active] = selHi() + 1;
+  clearSel();
+  drawSeq();
+}
+
+// Liitos korvaa valinnan jos sellainen on, muuten menee kohdistimeen.
+function doPaste(){
+  if (!clip.length) return;
+  stopPlay();
+  const lane = seq();
+  let at = cursors[active];
+  if (hasSel()){
+    at = selLo();
+    lane.splice(at, selHi() - selLo() + 1);
+    clearSel();
+  }
+  const copy = clip.map(it => Object.assign({}, it));
+  lane.splice.apply(lane, [at, 0].concat(copy));
+  cursors[active] = at + copy.length;
   drawSeq();
 }
 
@@ -639,13 +683,16 @@ function drawSeq(){
   const lane = seq();
   if (cursors[active] > lane.length) cursors[active] = lane.length;
   if (cursors[active] < 0) cursors[active] = 0;
+  if (anchor >= lane.length || focus >= lane.length) clearSel();
   const cur = cursors[active];
+  const lo = hasSel() ? selLo() : -1;
+  const hi = hasSel() ? selHi() : -2;
 
   notesEl.textContent = "";
   let caretEl = null;
 
   for (let i = 0; i <= lane.length; i++){
-    if (i === cur){
+    if (i === cur && !hasSel()){
       caretEl = document.createElement("b");
       caretEl.className = "caret";
       notesEl.append(caretEl);
@@ -654,7 +701,10 @@ function drawSeq(){
 
     const it = lane[i];
     const s  = document.createElement("span");
-    s.className = "note" + (isRest(it) ? " rest" : "") + (i === cur - 1 ? " sel" : "");
+    s.className = "note"
+      + (isRest(it) ? " rest" : "")
+      + (i >= lo && i <= hi ? " range" : "")
+      + (!hasSel() && i === cur - 1 ? " sel" : "");
     s.dataset.i = i;
     s.style.minWidth = (22 + 26 * it.d) + "px";
 
@@ -668,17 +718,23 @@ function drawSeq(){
 
   if (!isPlaying && caretEl) caretEl.scrollIntoView({ block:"nearest", inline:"nearest" });
 
-  countEl.textContent = lane.length;
-  stripEl.classList.toggle("show", armed || lane.length > 0 || lanes.some(l => l.length));
+  countEl.textContent = hasSel() ? (hi - lo + 1) + "/" + lane.length : lane.length;
+  stripEl.classList.toggle("show", armed || lanes.some(l => l.length));
 
   const empty = lane.length === 0;
-  const sel   = cur > 0 ? lane[cur - 1] : null;
   playBtn.disabled  = playAll ? !lanes.some(l => l.length) : empty;
-  delBtn.disabled   = cur === 0;
+  delBtn.disabled   = !hasSel() && cur === 0;
   clearBtn.disabled = empty;
   expBtn.disabled   = playAll ? !lanes.some(l => l.length) : empty;
-  shortBtn.disabled = !sel || sel.d === LENS[0];
-  longBtn.disabled  = !sel || sel.d === LENS[LENS.length - 1];
+  selBtn.disabled   = empty;
+  selBtn.classList.toggle("on", selecting);
+  selBtn.textContent = selecting ? "Valmis" : "Valitse";
+  copyBtn.disabled  = !hasSel();
+  pasteBtn.disabled = clip.length === 0;
+
+  const one = !hasSel() && cur > 0 ? lane[cur - 1] : null;
+  shortBtn.disabled = hasSel() ? false : (!one || one.d === LENS[0]);
+  longBtn.disabled  = hasSel() ? false : (!one || one.d === LENS[LENS.length - 1]);
 
   drawTracks();
   saveState();
@@ -692,7 +748,7 @@ notesEl.addEventListener("click", e => {
 
   const x = e.clientX;
   const first = spans[0].getBoundingClientRect();
-  if (x < first.left){ cursors[active] = 0; drawSeq(); return; }
+  if (x < first.left && !selecting){ cursors[active] = 0; drawSeq(); return; }
 
   let best = 0, bestD = Infinity;
   for (let i = 0; i < spans.length; i++){
@@ -702,7 +758,14 @@ notesEl.addEventListener("click", e => {
     if (d < bestD){ bestD = d; best = i; }
   }
 
-  cursors[active] = best + 1;
+  if (selecting){
+    // Ensimmäinen napautus asettaa alun, seuraavat venyttävät loppua.
+    if (anchor < 0) anchor = focus = best;
+    else focus = best;
+  } else {
+    cursors[active] = best + 1;
+  }
+
   const it = seq()[best];
   if (!isRest(it)) blip(it.n);
   drawSeq();
@@ -710,7 +773,7 @@ notesEl.addEventListener("click", e => {
 
 recBtn.addEventListener("click", () => {
   armed = !armed;
-  if (armed) stopPlay();
+  if (armed){ stopPlay(); clearSel(); }
   recBtn.classList.toggle("armed", armed);
   recBtn.textContent = armed ? "Seis" : "Nauhoita";
   recBtn.blur();
@@ -721,8 +784,23 @@ playBtn.addEventListener("click",  () => { isPlaying ? stopPlay() : startPlay();
 shortBtn.addEventListener("click", () => { changeLen(-1); shortBtn.blur(); });
 longBtn.addEventListener("click",  () => { changeLen(+1); longBtn.blur(); });
 delBtn.addEventListener("click",   () => { deleteAtCursor(); delBtn.blur(); });
+copyBtn.addEventListener("click",  () => { doCopy(); copyBtn.blur(); });
+pasteBtn.addEventListener("click", () => { doPaste(); pasteBtn.blur(); });
 
-// Tauko on nuotti ilman ääntä: vie tilaa ja siirtää seuraavia eteenpäin.
+selBtn.addEventListener("click", () => {
+  stopPlay();
+  if (selecting){
+    clearSel();
+  } else {
+    selecting = true;
+    anchor = focus = -1;
+    // Kohdistimen kohdalla oleva nuotti on luonteva alkupiste.
+    if (cursors[active] > 0) anchor = focus = cursors[active] - 1;
+  }
+  selBtn.blur();
+  drawSeq();
+});
+
 restBtn.addEventListener("click", () => {
   stopPlay();
   insertAtCursor({ r:true, d:1 });
@@ -744,6 +822,7 @@ clearBtn.addEventListener("click", () => {
   stopPlay();
   lane.length = 0;
   cursors[active] = 0;
+  clearSel();
   drawSeq();
   clearBtn.blur();
 });
@@ -765,6 +844,7 @@ function drawTracks(){
       if (i === active) return;
       stopPlay();
       allKeysUp();
+      clearSel();
       active = i;
       buildBoard();
       drawSeq();
@@ -775,10 +855,9 @@ function drawTracks(){
 }
 
 /* ---------- MIDI-vienti ---------- */
-// Yksi raita  -> formaatti 0.
-// Kaikki      -> formaatti 1, jokainen soitin omalle raidalleen FL:ssä.
+// Yksi raita -> formaatti 0. Kaikki -> formaatti 1, soitin per raita.
 
-const PPQ = 480, BASE_TICKS = 240;   // BASE_TICKS = pituus 1 = kahdeksasosa
+const PPQ = 480, BASE_TICKS = 240;
 
 function vlq(n){
   const out = [n & 0x7F];
@@ -891,7 +970,7 @@ function buildBoard(){
   codeToKey.clear();
   lit = null;
 
-  let visRow = 0;                                   // 0 = ylin näkyvä rivi
+  let visRow = 0;
   for (let row = ROWS - 1; row >= 0; row--, visRow++){
     const rowEl = document.createElement("div");
     rowEl.className = "row";
@@ -909,7 +988,6 @@ function buildBoard(){
       n.className = "name"; n.textContent = midiToName(midi);
       key.append(d, n);
 
-      // Sävellajissa voi olla 5, 6 tai 7 säveltä; ylimääräiset kirjaimet jäävät käyttämättä.
       const code = KB_ROWS[visRow] && KB_ROWS[visRow][i];
       if (code){
         codeToKey.set(code, key);
@@ -1044,30 +1122,61 @@ function auditionAtCursor(){
   }
 }
 
+// Shift + nuoli venyttää valintaa kohdistimesta, kuten tekstissä.
+function extendSel(dir){
+  const lane = seq();
+  if (!lane.length) return;
+  if (!hasSel()){
+    const start = Math.max(0, Math.min(lane.length - 1, cursors[active] - (dir < 0 ? 1 : 0)));
+    anchor = focus = start;
+  } else {
+    focus = Math.max(0, Math.min(lane.length - 1, focus + dir));
+  }
+  selecting = true;
+  drawSeq();
+}
+
 window.addEventListener("keydown", e => {
-  if (e.repeat) return;                                   // pohjassa pito ei toista nuottia
-  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.repeat) return;
   const tag = e.target && e.target.tagName;
   if (tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA") return;
 
+  if (e.ctrlKey || e.metaKey){
+    if (e.code === "KeyC"){ e.preventDefault(); doCopy();  return; }
+    if (e.code === "KeyV"){ e.preventDefault(); doPaste(); return; }
+    if (e.code === "KeyA"){
+      e.preventDefault();
+      if (seq().length){ selecting = true; anchor = 0; focus = seq().length - 1; drawSeq(); }
+      return;
+    }
+    return;
+  }
+  if (e.altKey) return;
+
+  if (e.shiftKey && (e.code === "ArrowLeft" || e.code === "ArrowRight")){
+    e.preventDefault(); stopPlay();
+    extendSel(e.code === "ArrowLeft" ? -1 : +1);
+    return;
+  }
+
+  if (e.code === "Escape")     { e.preventDefault(); clearSel(); drawSeq(); return; }
   if (e.code === "ArrowUp")    { e.preventDefault(); shiftOctave(+1); return; }
   if (e.code === "ArrowDown")  { e.preventDefault(); shiftOctave(-1); return; }
-  if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }
-  if (e.code === "ArrowRight") { e.preventDefault(); stopPlay(); cursors[active]++; drawSeq(); auditionAtCursor(); return; }
+  if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); clearSel(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }
+  if (e.code === "ArrowRight") { e.preventDefault(); stopPlay(); clearSel(); cursors[active]++; drawSeq(); auditionAtCursor(); return; }
   if (e.code === "Backspace")  { e.preventDefault(); deleteAtCursor(); return; }
   if (e.code === "Space")      { e.preventDefault(); stopPlay(); insertAtCursor({ r:true, d:1 }); return; }
   if (e.code === "Minus" || e.code === "NumpadSubtract"){ e.preventDefault(); changeLen(-1); return; }
   if (e.code === "Equal" || e.code === "NumpadAdd")     { e.preventDefault(); changeLen(+1); return; }
 
-  // 1-4 vaihtaa raitaa
   if (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit3" || e.code === "Digit4"){
     e.preventDefault();
     const i = Number(e.code.slice(5)) - 1;
-    if (i !== active){ stopPlay(); allKeysUp(); active = i; buildBoard(); drawSeq(); }
+    if (i !== active){ stopPlay(); allKeysUp(); clearSel(); active = i; buildBoard(); drawSeq(); }
     return;
   }
 
-  if (codeToKey.has(e.code))   { e.preventDefault(); keyDown(e.code); }
+  if (codeToKey.has(e.code)){ e.preventDefault(); keyDown(e.code); }
 });
 
 window.addEventListener("keyup", e => keyUp(e.code));

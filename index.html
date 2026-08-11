@@ -112,7 +112,8 @@
     background:var(--panel);
     border-bottom:1px solid var(--line);
   }
-  #trackrow button{
+  #tabs{flex:1 1 auto;display:flex;align-items:stretch;min-width:0;}
+  #tabs button{
     flex:1 1 0;min-width:0;
     border:none;border-radius:0;background:transparent;
     padding:5px 1px;font-size:10px;line-height:1.25;
@@ -121,11 +122,16 @@
     display:flex;flex-direction:column;align-items:center;gap:1px;
     overflow:hidden;
   }
-  #trackrow button:last-child{border-right:none;}
-  #trackrow button b{font-weight:600;}
-  #trackrow button span{font-size:9px;opacity:.5;}
-  #trackrow button.on{background:#0B0E12;color:var(--tonic);}
-  #trackrow button.on span{opacity:.7;}
+  #tabs button b{font-weight:600;}
+  #tabs button span{font-size:9px;opacity:.5;}
+  #tabs button.on{background:#0B0E12;color:var(--tonic);}
+  #tabs button.on span{opacity:.7;}
+  #mixbtn{
+    flex:0 0 46px;border:none;border-radius:0;background:transparent;
+    color:var(--text);font-size:10px;letter-spacing:.05em;
+    border-left:1px solid var(--line);
+  }
+  #mixbtn.on{background:#0B0E12;color:var(--tonic);}
 
   #strip{
     flex:0 0 auto;display:none;flex-direction:column;
@@ -181,11 +187,25 @@
   #export{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #export:disabled{border-color:var(--line);color:var(--key);}
 
+  /* ---- mikseri: korvaa koskettimiston kun avataan ---- */
+  #mixer{
+    flex:1 1 auto;min-height:0;display:none;
+    flex-direction:column;justify-content:center;gap:14px;
+    padding:14px 16px;
+  }
+  #mixer.show{display:flex;}
+  .mixrow{display:flex;align-items:center;gap:12px;}
+  .mixrow b{flex:0 0 62px;font-weight:600;font-size:12px;color:var(--key);}
+  .mixrow input{flex:1 1 auto;min-width:0;accent-color:var(--tonic);height:26px;}
+  .mixrow span{flex:0 0 46px;text-align:right;font-size:12px;color:var(--text);}
+  #mixhint{font-size:10px;line-height:1.4;opacity:.5;padding-top:2px;}
+
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
     padding:4px;touch-action:none;
   }
+  #board.hide{display:none;}
   .row{flex:1 1 0;min-height:0;display:flex;gap:4px;}
   .key{
     position:relative;
@@ -225,7 +245,10 @@
   </div>
 </div>
 
-<div id="trackrow"></div>
+<div id="trackrow">
+  <div id="tabs"></div>
+  <button id="mixbtn" type="button">Vol</button>
+</div>
 
 <div id="strip">
   <div id="striptop">
@@ -251,6 +274,7 @@
   </div>
 </div>
 
+<div id="mixer"></div>
 <div id="board"></div>
 
 <script>
@@ -295,45 +319,42 @@ const KICK_LABEL = { off:"Kick", bar:"Tahti", beat:"Isku" };
 let bpm      = 120;
 let kickMode = "off";
 
-const step    = () => 30 / bpm;          // pituuden 1 kesto sekunteina
+const step    = () => 30 / bpm;
 const beatDur = () => 60 / bpm;
 
-/* ---------- raidat ----------
-   Sama syntikkamoottori, eri asetukset. Ei ääninäytteitä, ei lisätiedostoja.
-   partials: [kerroin perustaajuudesta, alkuvoimakkuus, vaimenemisen suhde]
-
-   Kaikki neljä ovat yksiäänisiä käsitteitä — mikään raita ei lupaa sointuja,
-   joita appi ei osaisi soittaa.                                              */
+/* ---------- raidat ---------- */
 
 const TRACKS = [
-  // Pianomainen: täysi yläsävelsarja, iskuääni, luonnollinen vaimeneminen.
-  { key:"melodia", name:"Melodia", oct:3, tone:{
+  { key:"melodia", name:"Melodia", oct:3, vol:1.0, tone:{
       partials:[[1,1,.68],[2,.38,.40],[3,.17,.27],[4,.09,.19],[6,.04,.12]],
       attack:0.004, len:5.0, lpOpen:9, lpClose:2.5, gain:0.20, hit:0.09 } },
 
-  { key:"basso",   name:"Basso",   oct:1, tone:{
+  { key:"basso",   name:"Basso",   oct:1, vol:1.4, tone:{
       partials:[[1,1,1.10],[2,.22,.70],[3,.07,.45]],
       attack:0.006, len:6.0, lpOpen:5, lpClose:1.6, gain:0.30, hit:0.05 } },
 
-  // Vastamelodia: vain parittomat yläsävelet -> ontto, klarinettimainen väri,
-  // joka erottuu pianosta myös silloin kun molemmat soivat yhtä aikaa.
-  { key:"vasta",   name:"Vasta",   oct:3, tone:{
+  // Vain parittomat yläsävelet -> ontto, klarinettimainen väri.
+  { key:"vasta",   name:"Vasta",   oct:3, vol:1.0, tone:{
       partials:[[1,1,.85],[3,.30,.55],[5,.13,.38],[7,.06,.26]],
       attack:0.016, len:3.6, lpOpen:7, lpClose:2.2, gain:0.19, hit:0.00 } },
 
-  // Sointupohja: urkumainen ja tasainen, hiljaisempi. Yksi pitkä sävel
-  // sointua kohden — merkintä siitä missä harmonia vaihtuu.
-  { key:"pohja",   name:"Pohja",   oct:2, tone:{
+  // Urkumainen ja tasainen, tarkoitettu soimaan muiden alla.
+  { key:"pohja",   name:"Pohja",   oct:2, vol:0.9, tone:{
       partials:[[1,1,2.6],[2,.45,2.4],[3,.22,2.2],[4,.11,2.0]],
       attack:0.030, len:6.0, lpOpen:5, lpClose:2.0, gain:0.14, hit:0.00 } }
 ];
 
+const VOL_MIN = 0, VOL_MAX = 2.0;
+
 const lanes   = TRACKS.map(() => []);
 const cursors = TRACKS.map(() => 0);
 const octaves = TRACKS.map(t => t.oct);
+const vols    = TRACKS.map(t => t.vol);
+let kickVol   = 1.0;
 
 let active  = 0;
 let playAll = false;
+let mixing  = false;
 
 let selecting = false, anchor = -1, focus = -1;
 let clip = [];
@@ -356,8 +377,8 @@ const STORE_KEY = "savelluonnos.v1";
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      v:3, lanes:lanes, octaves:octaves, active:active,
-      playAll:playAll, root:state.root, scale:state.scale,
+      v:4, lanes:lanes, octaves:octaves, vols:vols, kickVol:kickVol,
+      active:active, playAll:playAll, root:state.root, scale:state.scale,
       bpm:bpm, kick:kickMode
     }));
   }catch(err){ /* täysi tai estetty tallennus: jatketaan ilman */ }
@@ -373,6 +394,8 @@ function readItem(it){
   if (Number.isInteger(it.n) && it.n >= 0 && it.n <= 127) return { n:it.n, d:d };
   return null;
 }
+
+const okVol = v => typeof v === "number" && isFinite(v) && v >= VOL_MIN && v <= VOL_MAX;
 
 function loadState(){
   let raw = null;
@@ -401,6 +424,11 @@ function loadState(){
       octaves[0] = d.octave;
     }
 
+    if (Array.isArray(d.vols)){
+      for (let t = 0; t < TRACKS.length; t++) if (okVol(d.vols[t])) vols[t] = d.vols[t];
+    }
+    if (okVol(d.kickVol)) kickVol = d.kickVol;
+
     if (Number.isInteger(d.active) && d.active >= 0 && d.active < TRACKS.length) active = d.active;
     if (typeof d.playAll === "boolean") playAll = d.playAll;
     if (Number.isInteger(d.root) && d.root >= 0 && d.root < 12) state.root = d.root;
@@ -416,9 +444,14 @@ function loadState(){
 
 /* ================================================================
    ÄÄNI
+
+   Jokaisella raidalla on oma äänenvoimakkuussolmu masterin edessä.
+   Säätö vaikuttaa siis myös jo soiviin nuotteihin — voit siis mikata
+   toiston aikana ja kuulla muutoksen heti.
    ================================================================ */
 
 let ac = null, master = null, noiseBuf = null;
+let trackGain = [], kickGain = null;
 
 const INHARM = 0.0004;
 
@@ -436,6 +469,17 @@ function wakeAudio(){
     master.gain.value = 0.45;
     master.connect(comp).connect(ac.destination);
 
+    trackGain = TRACKS.map((t, i) => {
+      const g = ac.createGain();
+      g.gain.value = vols[i];
+      g.connect(master);
+      return g;
+    });
+
+    kickGain = ac.createGain();
+    kickGain.gain.value = kickVol;
+    kickGain.connect(master);
+
     noiseBuf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.05), ac.sampleRate);
     const ch = noiseBuf.getChannelData(0);
     for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
@@ -443,9 +487,16 @@ function wakeAudio(){
   if (ac.state !== "running") ac.resume();
 }
 
+function applyVol(i){
+  if (!ac) return;
+  const t = ac.currentTime;
+  if (i === "kick") kickGain.gain.setTargetAtTime(kickVol, t, 0.01);
+  else trackGain[i].gain.setTargetAtTime(vols[i], t, 0.01);
+}
+
 const toneLen = (tone, m) => Math.min(tone.len, Math.max(0.35, tone.len * Math.pow(2, -(m - 45) / 26)));
 
-function voice(midi, at, hold, tone){
+function voice(midi, at, hold, tone, dest){
   const f0  = midiToFreq(midi);
   const dur = toneLen(tone, midi);
 
@@ -466,7 +517,7 @@ function voice(midi, at, hold, tone){
   lp.frequency.setValueAtTime(Math.min(12000, f0 * tone.lpOpen), at);
   lp.frequency.exponentialRampToValueAtTime(Math.max(300, f0 * tone.lpClose), at + dur * 0.55);
 
-  out.connect(lp).connect(master);
+  out.connect(lp).connect(dest || master);
 
   const nodes = [];
 
@@ -506,6 +557,8 @@ function voice(midi, at, hold, tone){
   return { out, nodes };
 }
 
+const laneVoice = (t, midi, at, hold) => voice(midi, at, hold, TRACKS[t].tone, trackGain[t]);
+
 /* ---------- kick ---------- */
 
 function kick(at){
@@ -517,7 +570,7 @@ function kick(at){
   g.gain.setValueAtTime(0.0001, at);
   g.gain.linearRampToValueAtTime(0.95, at + 0.004);
   g.gain.exponentialRampToValueAtTime(0.0001, at + 0.30);
-  o.connect(g).connect(master);
+  o.connect(g).connect(kickGain);
   o.start(at);
   o.stop(at + 0.32);
 
@@ -529,7 +582,7 @@ function kick(at){
   const ng = ac.createGain();
   ng.gain.setValueAtTime(0.16, at);
   ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.022);
-  nz.connect(hp).connect(ng).connect(master);
+  nz.connect(hp).connect(ng).connect(kickGain);
   nz.start(at);
   nz.stop(at + 0.04);
 }
@@ -571,7 +624,7 @@ let live = null, playingNote = null;
 function noteOn(midi){
   wakeAudio();
   noteOff(0.12);
-  live = voice(midi, ac.currentTime, 0, TRACKS[active].tone);
+  live = laneVoice(active, midi, ac.currentTime, 0);
   playingNote = midi;
 }
 
@@ -591,7 +644,7 @@ function noteOff(fade){
 
 function blip(midi){
   wakeAudio();
-  voice(midi, ac.currentTime, 0, TRACKS[active].tone);
+  laneVoice(active, midi, ac.currentTime, 0);
 }
 
 /* ---------- toisto ---------- */
@@ -599,14 +652,13 @@ function blip(midi){
 let voices = [], starts = [], playEnd = 0, playRaf = 0, isPlaying = false;
 
 function scheduleLane(t, at0){
-  const tone = TRACKS[t].tone;
   const s = step();
   let time = at0;
   const marks = [];
   for (const it of lanes[t]){
     const len = s * it.d;
     marks.push(time);
-    if (!isRest(it)) voices.push(voice(it.n, time, len, tone));
+    if (!isRest(it)) voices.push(laneVoice(t, it.n, time, len));
     time += len;
   }
   return { end: time, marks: marks };
@@ -641,7 +693,7 @@ function startPlay(){
   playBtn.classList.add("on");
   playBtn.innerHTML = "&#9632;";
   playBtn.setAttribute("aria-label", "Pysäytä");
-  metroStart(at0);                      // potku kohdistuu jakson alkuun
+  metroStart(at0);
   tickPlay();
 }
 
@@ -666,7 +718,7 @@ function stopPlay(){
   playBtn.innerHTML = "&#9654;";
   playBtn.setAttribute("aria-label", "Toista");
   markPlay(-1);
-  if (kickMode !== "off") metroStart();  // metronomi jatkaa vapaana
+  if (kickMode !== "off") metroStart();
 }
 
 function tickPlay(){
@@ -710,7 +762,10 @@ const copyBtn  = document.getElementById("copy");
 const pasteBtn = document.getElementById("paste");
 const clearBtn = document.getElementById("clear");
 const expBtn   = document.getElementById("export");
-const trackRow = document.getElementById("trackrow");
+const tabsEl   = document.getElementById("tabs");
+const mixBtn   = document.getElementById("mixbtn");
+const mixerEl  = document.getElementById("mixer");
+const boardEl  = document.getElementById("board");
 const kickBtn  = document.getElementById("kick");
 const bpmNow   = document.getElementById("bpmnow");
 
@@ -877,7 +932,7 @@ notesEl.addEventListener("click", e => {
 
 recBtn.addEventListener("click", () => {
   armed = !armed;
-  if (armed){ stopPlay(); clearSel(); }
+  if (armed){ stopPlay(); clearSel(); if (mixing) setMixing(false); }
   recBtn.classList.toggle("armed", armed);
   recBtn.textContent = armed ? "Seis" : "Nauhoita";
   recBtn.blur();
@@ -930,6 +985,56 @@ clearBtn.addEventListener("click", () => {
   clearBtn.blur();
 });
 
+/* ---------- mikseri ---------- */
+
+function volRow(label, get, set){
+  const row = document.createElement("div");
+  row.className = "mixrow";
+
+  const nm = document.createElement("b");
+  nm.textContent = label;
+
+  const sl = document.createElement("input");
+  sl.type = "range";
+  sl.min = "0"; sl.max = "200"; sl.step = "5";
+  sl.value = String(Math.round(get() * 100));
+
+  const val = document.createElement("span");
+  val.textContent = sl.value + "%";
+
+  sl.addEventListener("input", () => {
+    set(Number(sl.value) / 100);
+    val.textContent = sl.value + "%";
+    saveState();
+  });
+
+  row.append(nm, sl, val);
+  return row;
+}
+
+function buildMixer(){
+  mixerEl.textContent = "";
+  TRACKS.forEach((t, i) => {
+    mixerEl.append(volRow(t.name, () => vols[i], v => { vols[i] = v; applyVol(i); }));
+  });
+  mixerEl.append(volRow("Kick", () => kickVol, v => { kickVol = v; applyVol("kick"); }));
+
+  const hint = document.createElement("div");
+  hint.id = "mixhint";
+  hint.textContent = "Säädöt kuuluvat heti, myös toiston aikana. Ne eivät kulje MIDIin: puhelimen kaiutin ei ole miksausreferenssi, joten tasapaino tehdään FL:ssä uudelleen.";
+  mixerEl.append(hint);
+}
+
+function setMixing(on){
+  mixing = on;
+  mixBtn.classList.toggle("on", on);
+  mixerEl.classList.toggle("show", on);
+  boardEl.classList.toggle("hide", on);
+  if (on){ wakeAudio(); buildMixer(); allKeysUp(); }
+}
+
+mixBtn.addEventListener("click", () => { setMixing(!mixing); mixBtn.blur(); });
+
 /* ---------- tempo ja kick ---------- */
 
 function drawTempo(){
@@ -947,7 +1052,7 @@ function changeBpm(dir){
   bpm = BPMS[j];
   drawTempo();
   saveState();
-  if (isPlaying) startPlay();            // uusi tempo kuuluu heti
+  if (isPlaying) startPlay();
   else if (kickMode !== "off") metroStart();
 }
 
@@ -973,7 +1078,7 @@ document.addEventListener("visibilitychange", () => {
 /* ---------- raitavalinta ---------- */
 
 function drawTracks(){
-  trackRow.textContent = "";
+  tabsEl.textContent = "";
   TRACKS.forEach((t, i) => {
     const b = document.createElement("button");
     b.type = "button";
@@ -993,7 +1098,7 @@ function drawTracks(){
       drawSeq();
       b.blur();
     });
-    trackRow.append(b);
+    tabsEl.append(b);
   });
 }
 
@@ -1027,6 +1132,8 @@ function tempoMeta(){
   return [0x00, 0xFF, 0x51, 0x03, (us >> 16) & 0xFF, (us >> 8) & 0xFF, us & 0xFF];
 }
 
+// Voimakkuus on vakio: kuuntelusäädöt eivät saa vääristää FL:ään
+// vietävää aineistoa, koska puhelimen kaiutin ei ole miksausreferenssi.
 function laneEvents(lane, channel){
   const ev = [];
   let pending = 0;                       // taukojen kertymä seuraavaan nuottiin
@@ -1099,7 +1206,6 @@ expBtn.addEventListener("click", () => { exportMidi(); expBtn.blur(); });
 
 /* ---------- koskettimisto ---------- */
 
-const board  = document.getElementById("board");
 const octNow = document.getElementById("octnow");
 const octUp  = document.getElementById("octup");
 const octDn  = document.getElementById("octdown");
@@ -1111,7 +1217,7 @@ let lit = null;
 function buildBoard(){
   const steps = SCALES[state.scale];
   const oct   = octaves[active];
-  board.textContent = "";
+  boardEl.textContent = "";
   codeToKey.clear();
   lit = null;
 
@@ -1142,7 +1248,7 @@ function buildBoard(){
       }
       rowEl.append(key);
     });
-    board.append(rowEl);
+    boardEl.append(rowEl);
   }
 
   octNow.textContent = "";
@@ -1179,7 +1285,7 @@ function light(key){
 }
 
 function lightMidi(midi){
-  light(midi === null ? null : board.querySelector('.key[data-midi="' + midi + '"]'));
+  light(midi === null ? null : boardEl.querySelector('.key[data-midi="' + midi + '"]'));
 }
 
 /* ---------- kosketus ---------- */
@@ -1191,15 +1297,15 @@ const keyAt = (x, y) => {
 
 let pressing = false;
 
-board.addEventListener("pointerdown", e => {
+boardEl.addEventListener("pointerdown", e => {
   e.preventDefault();
   stopPlay();
   pressing = true;
-  board.setPointerCapture(e.pointerId);
+  boardEl.setPointerCapture(e.pointerId);
   strike(e.clientX, e.clientY);
 });
 
-board.addEventListener("pointermove", e => {
+boardEl.addEventListener("pointermove", e => {
   if (pressing) strike(e.clientX, e.clientY);
 });
 
@@ -1303,7 +1409,7 @@ window.addEventListener("keydown", e => {
     return;
   }
 
-  if (e.code === "Escape")     { e.preventDefault(); clearSel(); drawSeq(); return; }
+  if (e.code === "Escape")     { e.preventDefault(); if (mixing) setMixing(false); else { clearSel(); drawSeq(); } return; }
   if (e.code === "ArrowUp")    { e.preventDefault(); shiftOctave(+1); return; }
   if (e.code === "ArrowDown")  { e.preventDefault(); shiftOctave(-1); return; }
   if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); clearSel(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }
@@ -1322,6 +1428,7 @@ window.addEventListener("keydown", e => {
     return;
   }
 
+  if (mixing) return;
   if (codeToKey.has(e.code)){ e.preventDefault(); keyDown(e.code); }
 });
 

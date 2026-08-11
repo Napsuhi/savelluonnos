@@ -71,7 +71,6 @@
   #rec.armed{background:var(--rec);color:#fff;border-color:var(--rec);}
   #rec.armed::before{background:#fff;border-color:#fff;}
 
-  /* ---- rivi 2: oktaavi vasemmalla, tempo oikealla ---- */
   #midrow{
     flex:0 0 auto;
     display:flex;align-items:stretch;
@@ -116,10 +115,11 @@
   #trackrow button{
     flex:1 1 0;min-width:0;
     border:none;border-radius:0;background:transparent;
-    padding:5px 2px;font-size:11px;line-height:1.25;
+    padding:5px 1px;font-size:10px;line-height:1.25;
     color:var(--text);
     border-right:1px solid var(--line);
     display:flex;flex-direction:column;align-items:center;gap:1px;
+    overflow:hidden;
   }
   #trackrow button:last-child{border-right:none;}
   #trackrow button b{font-weight:600;}
@@ -287,7 +287,6 @@ const OCT_MIN = 1, OCT_MAX = 5;
 const LENS      = [0.5, 1, 2, 4];
 const LEN_LABEL = { 0.5:"½", 1:"1", 2:"2", 4:"4" };
 
-// Tempo. Pituus 1 = kahdeksasosanuotti, joten sen kesto on puoli iskua.
 const BPMS  = [80,90,100,110,120,130,140,150,160];
 const BEATS_PER_BAR = 4;
 const KICK_MODES = ["off","bar","beat"];
@@ -296,12 +295,18 @@ const KICK_LABEL = { off:"Kick", bar:"Tahti", beat:"Isku" };
 let bpm      = 120;
 let kickMode = "off";
 
-const step     = () => 30 / bpm;          // pituuden 1 kesto sekunteina
-const beatDur  = () => 60 / bpm;
+const step    = () => 30 / bpm;          // pituuden 1 kesto sekunteina
+const beatDur = () => 60 / bpm;
 
-/* ---------- raidat ---------- */
+/* ---------- raidat ----------
+   Sama syntikkamoottori, eri asetukset. Ei ääninäytteitä, ei lisätiedostoja.
+   partials: [kerroin perustaajuudesta, alkuvoimakkuus, vaimenemisen suhde]
+
+   Kaikki neljä ovat yksiäänisiä käsitteitä — mikään raita ei lupaa sointuja,
+   joita appi ei osaisi soittaa.                                              */
 
 const TRACKS = [
+  // Pianomainen: täysi yläsävelsarja, iskuääni, luonnollinen vaimeneminen.
   { key:"melodia", name:"Melodia", oct:3, tone:{
       partials:[[1,1,.68],[2,.38,.40],[3,.17,.27],[4,.09,.19],[6,.04,.12]],
       attack:0.004, len:5.0, lpOpen:9, lpClose:2.5, gain:0.20, hit:0.09 } },
@@ -310,13 +315,17 @@ const TRACKS = [
       partials:[[1,1,1.10],[2,.22,.70],[3,.07,.45]],
       attack:0.006, len:6.0, lpOpen:5, lpClose:1.6, gain:0.30, hit:0.05 } },
 
-  { key:"soinnut", name:"Soinnut", oct:3, tone:{
-      partials:[[1,1,2.2],[2,.50,2.0],[3,.30,1.8],[4,.18,1.6],[5,.10,1.4]],
-      attack:0.110, len:6.0, lpOpen:4, lpClose:2.0, gain:0.13, hit:0.00 } },
+  // Vastamelodia: vain parittomat yläsävelet -> ontto, klarinettimainen väri,
+  // joka erottuu pianosta myös silloin kun molemmat soivat yhtä aikaa.
+  { key:"vasta",   name:"Vasta",   oct:3, tone:{
+      partials:[[1,1,.85],[3,.30,.55],[5,.13,.38],[7,.06,.26]],
+      attack:0.016, len:3.6, lpOpen:7, lpClose:2.2, gain:0.19, hit:0.00 } },
 
-  { key:"arp",     name:"Arp",     oct:4, tone:{
-      partials:[[1,1,.26],[2,.50,.18],[3,.35,.13],[4,.20,.10],[6,.10,.07],[8,.05,.05]],
-      attack:0.002, len:2.2, lpOpen:12, lpClose:4.0, gain:0.18, hit:0.12 } }
+  // Sointupohja: urkumainen ja tasainen, hiljaisempi. Yksi pitkä sävel
+  // sointua kohden — merkintä siitä missä harmonia vaihtuu.
+  { key:"pohja",   name:"Pohja",   oct:2, tone:{
+      partials:[[1,1,2.6],[2,.45,2.4],[3,.22,2.2],[4,.11,2.0]],
+      attack:0.030, len:6.0, lpOpen:5, lpClose:2.0, gain:0.14, hit:0.00 } }
 ];
 
 const lanes   = TRACKS.map(() => []);
@@ -497,10 +506,7 @@ function voice(midi, at, hold, tone){
   return { out, nodes };
 }
 
-/* ---------- kick ----------
-   Taajuus putoaa nopeasti 150 Hz:stä 45 Hz:iin — se pudotus on se mikä
-   tekee siitä potkun eikä bassonuotin. Päälle lyhyt kohinanaksahdus,
-   jotta isku kuuluu myös puhelimen kaiuttimesta jossa bassoa ei ole.   */
+/* ---------- kick ---------- */
 
 function kick(at){
   const o = ac.createOscillator();
@@ -528,9 +534,7 @@ function kick(at){
   nz.stop(at + 0.04);
 }
 
-/* ---------- metronomi ----------
-   Selaimen ajastin on epätarkka, joten iskut varataan etukäteen
-   äänikellon aikaan. Ajastin vain katsoo riittävän kauas eteenpäin.   */
+/* ---------- metronomi ---------- */
 
 let metroTimer = null, metroNext = 0;
 
@@ -950,7 +954,6 @@ function changeBpm(dir){
 document.getElementById("bpmdown").addEventListener("click", e => { changeBpm(-1); e.target.blur(); });
 document.getElementById("bpmup").addEventListener("click",   e => { changeBpm(+1); e.target.blur(); });
 
-// Kolme tilaa: pois, kerran tahdissa, joka iskulla.
 kickBtn.addEventListener("click", () => {
   const i = KICK_MODES.indexOf(kickMode);
   kickMode = KICK_MODES[(i + 1) % KICK_MODES.length];
@@ -1019,7 +1022,6 @@ function nameMeta(name){
   return [0x00, 0xFF, 0x03].concat(vlq(bytes.length), bytes);
 }
 
-// Tempo tiedostoon valitun BPM:n mukaan.
 function tempoMeta(){
   const us = Math.round(60000000 / bpm);
   return [0x00, 0xFF, 0x51, 0x03, (us >> 16) & 0xFF, (us >> 8) & 0xFF, us & 0xFF];

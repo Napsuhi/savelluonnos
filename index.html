@@ -178,8 +178,9 @@
   .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
   .btnrow:last-child{padding-bottom:6px;}
   .btnrow button{padding:6px 5px;font-size:12px;flex:1 1 0;}
-  #shorter,#longer,#play{flex:0 0 46px;text-align:center;font-size:14px;line-height:1;}
-  #play.on{border-color:var(--key-on);color:var(--key-on);}
+  #shorter,#longer,#play,#playhere{flex:0 0 46px;text-align:center;font-size:14px;line-height:1;}
+  #play.on,#playhere.on{border-color:var(--key-on);color:var(--key-on);}
+  #playhere{border-color:#3A4A5E;}
   #rest{border-color:var(--rest);}
   #select.on{border-color:var(--tonic);color:var(--tonic);}
   #mode{flex:0 0 86px;}
@@ -289,8 +290,9 @@
     <button id="clear"  type="button" disabled>Tyhjennä</button>
   </div>
   <div class="btnrow">
-    <button id="play"   type="button" aria-label="Toista" disabled>&#9654;</button>
-    <button id="mode"   type="button">Raita</button>
+    <button id="play"     type="button" aria-label="Toista alusta" disabled>&#9654;</button>
+    <button id="playhere" type="button" aria-label="Toista kohdistimesta" disabled>&#9654;|</button>
+    <button id="mode"     type="button">Raita</button>
     <button id="undo"   type="button" disabled>Kumoa</button>
     <button id="export" type="button" disabled>Vie MIDI</button>
   </div>
@@ -673,12 +675,18 @@ function blip(midi){
 /* ---------- toisto ---------- */
 
 let voices = [], starts = [], playEnd = 0, playRaf = 0, isPlaying = false;
+let fromIdx = 0, playIdx = -1;   // aloituskohta ja parhaillaan soiva nuotti
 
-function scheduleLane(t, at0){
+// from = mistä nuotista raita alkaa. Ohitetut nuotit saavat merkkiajaksi
+// at0:n, jotta nauhan korostuslogiikka pysyy indeksien kanssa linjassa.
+function scheduleLane(t, at0, from){
   const s = step();
+  const skip = from || 0;
   let time = at0;
   const marks = [];
-  for (const it of lanes[t]){
+  for (let i = 0; i < lanes[t].length; i++){
+    const it = lanes[t][i];
+    if (i < skip){ marks.push(at0); continue; }
     const len = s * it.d;
     marks.push(time);
     if (!isRest(it)) voices.push(laneVoice(t, it.n, time, len));
@@ -687,9 +695,13 @@ function scheduleLane(t, at0){
   return { end: time, marks: marks };
 }
 
-function startPlay(){
+// from = aloitusnuotti aktiivisella raidalla. Muut raidat alkavat aina
+// alusta: ne ovat eri mittaisia, joten samaa "kohtaa" ei ole olemassa.
+function startPlay(from){
   const anything = playAll ? lanes.some(l => l.length) : seq().length;
   if (!anything) return;
+
+  const skip = Math.max(0, Math.min(seq().length - 1, from || 0));
 
   stopPlay();
   wakeAudio();
@@ -701,20 +713,22 @@ function startPlay(){
 
   if (playAll){
     for (let t = 0; t < TRACKS.length; t++){
-      const r = scheduleLane(t, at0);
+      const r = scheduleLane(t, at0, t === active ? skip : 0);
       if (t === active) starts = r.marks;
       if (r.end > end) end = r.end;
     }
   } else {
-    const r = scheduleLane(active, at0);
+    const r = scheduleLane(active, at0, skip);
     starts = r.marks;
     end = r.end;
   }
 
   playEnd = end;
   isPlaying = true;
-  playBtn.classList.add("on");
+  fromIdx = skip;
+  (skip ? hereBtn : playBtn).classList.add("on");
   playBtn.innerHTML = "&#9632;";
+  hereBtn.innerHTML = "&#9632;";
   playBtn.setAttribute("aria-label", "Pysäytä");
   metroStart(at0);
   tickPlay();
@@ -738,9 +752,12 @@ function stopPlay(){
   if (!isPlaying) return;
   isPlaying = false;
   playBtn.classList.remove("on");
+  hereBtn.classList.remove("on");
   playBtn.innerHTML = "&#9654;";
-  playBtn.setAttribute("aria-label", "Toista");
+  hereBtn.innerHTML = "&#9654;|";
+  playBtn.setAttribute("aria-label", "Toista alusta");
   markPlay(-1);
+  fromIdx = 0;
   if (kickMode !== "off") metroStart();
 }
 
@@ -748,7 +765,8 @@ function tickPlay(){
   const now = ac.currentTime;
   if (now >= playEnd){ stopPlay(); return; }
   let i = -1;
-  for (let k = 0; k < starts.length; k++){ if (now >= starts[k]) i = k; else break; }
+  for (let k = fromIdx; k < starts.length; k++){ if (now >= starts[k]) i = k; else break; }
+  playIdx = i;
   markPlay(i);
   playRaf = requestAnimationFrame(tickPlay);
 }
@@ -775,6 +793,7 @@ const notesEl  = document.getElementById("notes");
 const countEl  = document.getElementById("count");
 const recBtn   = document.getElementById("rec");
 const playBtn  = document.getElementById("play");
+const hereBtn  = document.getElementById("playhere");
 const modeBtn  = document.getElementById("mode");
 const shortBtn = document.getElementById("shorter");
 const longBtn  = document.getElementById("longer");
@@ -959,6 +978,7 @@ function drawSeq(){
 
   const empty = lane.length === 0;
   playBtn.disabled  = playAll ? !lanes.some(l => l.length) : empty;
+  hereBtn.disabled  = empty;
   delBtn.disabled   = !hasSel() && cur === 0;
   clearBtn.disabled = empty;
   expBtn.disabled   = playAll ? !lanes.some(l => l.length) : empty;
@@ -1015,7 +1035,20 @@ recBtn.addEventListener("click", () => {
   drawSeq();
 });
 
-playBtn.addEventListener("click",  () => { isPlaying ? stopPlay() : startPlay(); playBtn.blur(); });
+playBtn.addEventListener("click",  () => { isPlaying ? stopPlay() : startPlay(0); playBtn.blur(); });
+
+// Toinen play jatkaa kohdistimesta. Kesken toiston se on tauko: kohdistin
+// jää siihen nuottiin joka juuri soi, joten uusi painallus jatkaa siitä.
+hereBtn.addEventListener("click", () => {
+  if (isPlaying){
+    const at = playIdx;
+    stopPlay();
+    if (at >= 0){ clearSel(); cursors[active] = at; drawSeq(); }
+  } else {
+    startPlay(cursors[active] > 0 ? cursors[active] - 1 : 0);
+  }
+  hereBtn.blur();
+});
 shortBtn.addEventListener("click", () => { changeLen(-1); shortBtn.blur(); });
 longBtn.addEventListener("click",  () => { changeLen(+1); longBtn.blur(); });
 delBtn.addEventListener("click",   () => { deleteAtCursor(); delBtn.blur(); });
@@ -1327,7 +1360,7 @@ function changeBpm(dir){
   bpm = BPMS[j];
   drawTempo();
   saveState();
-  if (isPlaying) startPlay();
+  if (isPlaying) startPlay(fromIdx);
   else if (kickMode !== "off") metroStart();
 }
 

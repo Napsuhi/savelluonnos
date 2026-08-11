@@ -270,6 +270,7 @@
   <div class="btnrow">
     <button id="play"   type="button" aria-label="Toista" disabled>&#9654;</button>
     <button id="mode"   type="button">Raita</button>
+    <button id="undo"   type="button" disabled>Kumoa</button>
     <button id="export" type="button" disabled>Vie MIDI</button>
   </div>
 </div>
@@ -761,6 +762,7 @@ const selBtn   = document.getElementById("select");
 const copyBtn  = document.getElementById("copy");
 const pasteBtn = document.getElementById("paste");
 const clearBtn = document.getElementById("clear");
+const undoBtn  = document.getElementById("undo");
 const expBtn   = document.getElementById("export");
 const tabsEl   = document.getElementById("tabs");
 const mixBtn   = document.getElementById("mixbtn");
@@ -771,7 +773,38 @@ const bpmNow   = document.getElementById("bpmnow");
 
 function clearSel(){ selecting = false; anchor = -1; focus = -1; }
 
+/* ---------- undo ----------
+   Ennen jokaista nuotteja muuttavaa operaatiota otetaan tilannekuva
+   kaikista neljästä raidasta. Ne ovat pieniä taulukoita, joten 40
+   askeleen historia maksaa kilotavuja. Undo palauttaa myös kohdistimet,
+   jotta liitoksen peruminen vie takaisin siihen mistä lähdit.          */
+
+const HIST_MAX = 40;
+const history  = [];
+
+function snapshot(){
+  history.push({
+    lanes:   lanes.map(l => l.map(it => Object.assign({}, it))),
+    cursors: cursors.slice()
+  });
+  if (history.length > HIST_MAX) history.shift();
+}
+
+function undo(){
+  const s = history.pop();
+  if (!s) return;
+  stopPlay();
+  for (let t = 0; t < TRACKS.length; t++){
+    lanes[t].length = 0;
+    for (const it of s.lanes[t]) lanes[t].push(it);
+    cursors[t] = s.cursors[t];
+  }
+  clearSel();
+  drawSeq();
+}
+
 function insertAtCursor(item){
+  snapshot();
   clearSel();
   seq().splice(cursors[active], 0, item);
   cursors[active]++;
@@ -785,6 +818,7 @@ function capture(midi){
 
 function deleteAtCursor(){
   stopPlay();
+  snapshot();
   if (hasSel()){
     const lo = selLo(), hi = selHi();
     seq().splice(lo, hi - lo + 1);
@@ -800,6 +834,7 @@ function deleteAtCursor(){
 }
 
 function changeLen(dir){
+  snapshot();
   const lane = seq();
   const bump = it => {
     let i = LENS.indexOf(it.d);
@@ -827,6 +862,7 @@ function doCopy(){
 function doPaste(){
   if (!clip.length) return;
   stopPlay();
+  snapshot();
   const lane = seq();
   let at = cursors[active];
   if (hasSel()){
@@ -892,6 +928,7 @@ function drawSeq(){
   selBtn.textContent = selecting ? "Valmis" : "Valitse";
   copyBtn.disabled  = !hasSel();
   pasteBtn.disabled = clip.length === 0;
+  undoBtn.disabled  = history.length === 0;
 
   const one = !hasSel() && cur > 0 ? lane[cur - 1] : null;
   shortBtn.disabled = hasSel() ? false : (!one || one.d === LENS[0]);
@@ -943,6 +980,7 @@ playBtn.addEventListener("click",  () => { isPlaying ? stopPlay() : startPlay();
 shortBtn.addEventListener("click", () => { changeLen(-1); shortBtn.blur(); });
 longBtn.addEventListener("click",  () => { changeLen(+1); longBtn.blur(); });
 delBtn.addEventListener("click",   () => { deleteAtCursor(); delBtn.blur(); });
+undoBtn.addEventListener("click",  () => { undo(); undoBtn.blur(); });
 copyBtn.addEventListener("click",  () => { doCopy(); copyBtn.blur(); });
 pasteBtn.addEventListener("click", () => { doPaste(); pasteBtn.blur(); });
 
@@ -978,6 +1016,7 @@ clearBtn.addEventListener("click", () => {
   const lane = seq();
   if (lane.length && !confirm("Tyhjennetäänkö raita " + TRACKS[active].name + " (" + lane.length + " nuottia)?")) return;
   stopPlay();
+  snapshot();
   lane.length = 0;
   cursors[active] = 0;
   clearSel();
@@ -1392,6 +1431,7 @@ window.addEventListener("keydown", e => {
   if (tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA") return;
 
   if (e.ctrlKey || e.metaKey){
+    if (e.code === "KeyZ"){ e.preventDefault(); undo();    return; }
     if (e.code === "KeyC"){ e.preventDefault(); doCopy();  return; }
     if (e.code === "KeyV"){ e.preventDefault(); doPaste(); return; }
     if (e.code === "KeyA"){

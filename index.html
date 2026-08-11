@@ -126,12 +126,12 @@
   #tabs button span{font-size:9px;opacity:.5;}
   #tabs button.on{background:#0B0E12;color:var(--tonic);}
   #tabs button.on span{opacity:.7;}
-  #mixbtn{
-    flex:0 0 46px;border:none;border-radius:0;background:transparent;
+  #mixbtn,#savebtn{
+    flex:0 0 44px;border:none;border-radius:0;background:transparent;
     color:var(--text);font-size:10px;letter-spacing:.05em;
     border-left:1px solid var(--line);
   }
-  #mixbtn.on{background:#0B0E12;color:var(--tonic);}
+  #mixbtn.on,#savebtn.on{background:#0B0E12;color:var(--tonic);}
 
   #strip{
     flex:0 0 auto;display:none;flex-direction:column;
@@ -200,6 +200,26 @@
   .mixrow span{flex:0 0 46px;text-align:right;font-size:12px;color:var(--text);}
   #mixhint{font-size:10px;line-height:1.4;opacity:.5;padding-top:2px;}
 
+  /* ---- otospaneeli ---- */
+  #savepanel{
+    flex:1 1 auto;min-height:0;display:none;
+    flex-direction:column;padding:10px 12px;gap:8px;
+  }
+  #savepanel.show{display:flex;}
+  #savenow{flex:0 0 auto;padding:9px;font-size:12px;border-color:var(--tonic);color:var(--tonic);font-weight:600;}
+  #savelist{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+  .saverow{
+    display:flex;align-items:center;gap:8px;
+    background:#0B0E12;border:1px solid var(--line);border-radius:6px;
+    padding:7px 9px;
+  }
+  .saverow div{flex:1 1 auto;min-width:0;}
+  .saverow .when{font-size:12px;color:var(--key);line-height:1.3;}
+  .saverow .what{font-size:10px;color:var(--text);line-height:1.3;}
+  .saverow button{flex:0 0 auto;padding:6px 9px;font-size:11px;}
+  .saverow .drop{border-color:var(--rec);color:var(--rec);}
+  #saveempty{font-size:11px;opacity:.5;line-height:1.5;padding:6px 2px;}
+
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
@@ -247,7 +267,8 @@
 
 <div id="trackrow">
   <div id="tabs"></div>
-  <button id="mixbtn" type="button">Vol</button>
+  <button id="mixbtn"  type="button">Vol</button>
+  <button id="savebtn" type="button">Otos</button>
 </div>
 
 <div id="strip">
@@ -276,6 +297,7 @@
 </div>
 
 <div id="mixer"></div>
+<div id="savepanel"></div>
 <div id="board"></div>
 
 <script>
@@ -767,6 +789,8 @@ const expBtn   = document.getElementById("export");
 const tabsEl   = document.getElementById("tabs");
 const mixBtn   = document.getElementById("mixbtn");
 const mixerEl  = document.getElementById("mixer");
+const saveBtn  = document.getElementById("savebtn");
+const savePanel= document.getElementById("savepanel");
 const boardEl  = document.getElementById("board");
 const kickBtn  = document.getElementById("kick");
 const bpmNow   = document.getElementById("bpmnow");
@@ -785,7 +809,14 @@ const history  = [];
 function snapshot(){
   history.push({
     lanes:   lanes.map(l => l.map(it => Object.assign({}, it))),
-    cursors: cursors.slice()
+    cursors: cursors.slice(),
+    octaves: octaves.slice(),
+    vols:    vols.slice(),
+    kickVol: kickVol,
+    root:    state.root,
+    scale:   state.scale,
+    bpm:     bpm,
+    active:  active
   });
   if (history.length > HIST_MAX) history.shift();
 }
@@ -798,8 +829,16 @@ function undo(){
     lanes[t].length = 0;
     for (const it of s.lanes[t]) lanes[t].push(it);
     cursors[t] = s.cursors[t];
+    octaves[t] = s.octaves[t];
+    vols[t]    = s.vols[t];
+    applyVol(t);
   }
+  kickVol = s.kickVol; applyVol("kick");
+  state.root = s.root; state.scale = s.scale; bpm = s.bpm; active = s.active;
+  rootSel.value = state.root; scaleSel.value = state.scale;
   clearSel();
+  drawTempo();
+  buildBoard();
   drawSeq();
 }
 
@@ -1024,6 +1063,191 @@ clearBtn.addEventListener("click", () => {
   clearBtn.blur();
 });
 
+/* ---------- otokset ----------
+   Tallenteilla ei ole käyttäjän kirjoittamaa nimeä lainkaan: kuvaus
+   kootaan aikaleimasta ja sovelluksen omasta tilasta. Näin appiin ei
+   synny yhtään kohtaa jossa käyttäjän tekstiä renderöidään.
+
+   Omassa avaimessaan, jotta joka nuotin kohdalla tehtävä automaattinen
+   tallennus ei kirjoita koko otoslistaa uudestaan.                      */
+
+const SAVES_KEY = "savelluonnos.saves";
+const SAVES_MAX = 30;
+
+let saves = [];
+
+function stateBundle(){
+  return {
+    ts:      Date.now(),
+    lanes:   lanes.map(l => l.map(it => Object.assign({}, it))),
+    octaves: octaves.slice(),
+    vols:    vols.slice(),
+    kickVol: kickVol,
+    root:    state.root,
+    scale:   state.scale,
+    bpm:     bpm
+  };
+}
+
+// Sama kaava kuin muualla: jokainen kenttä tarkistetaan erikseen,
+// mitään ei kopioida tallenteesta sellaisenaan.
+function readSave(o){
+  if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+  if (!Number.isFinite(o.ts)) return null;
+  if (!Array.isArray(o.lanes)) return null;
+
+  const b = {
+    ts:      o.ts,
+    lanes:   TRACKS.map(() => []),
+    octaves: TRACKS.map(t => t.oct),
+    vols:    TRACKS.map(t => t.vol),
+    kickVol: 1.0,
+    root:    0,
+    scale:   "Duuri",
+    bpm:     120
+  };
+
+  for (let t = 0; t < TRACKS.length; t++){
+    const src = o.lanes[t];
+    if (!Array.isArray(src)) continue;
+    for (const it of src){ const x = readItem(it); if (x) b.lanes[t].push(x); }
+  }
+  if (Array.isArray(o.octaves)){
+    for (let t = 0; t < TRACKS.length; t++){
+      const v = o.octaves[t];
+      if (Number.isInteger(v) && v >= OCT_MIN && v <= OCT_MAX) b.octaves[t] = v;
+    }
+  }
+  if (Array.isArray(o.vols)){
+    for (let t = 0; t < TRACKS.length; t++) if (okVol(o.vols[t])) b.vols[t] = o.vols[t];
+  }
+  if (okVol(o.kickVol)) b.kickVol = o.kickVol;
+  if (Number.isInteger(o.root) && o.root >= 0 && o.root < 12) b.root = o.root;
+  if (typeof o.scale === "string" && Object.prototype.hasOwnProperty.call(SCALES, o.scale)) b.scale = o.scale;
+  if (BPMS.indexOf(o.bpm) >= 0) b.bpm = o.bpm;
+
+  if (!b.lanes.some(l => l.length)) return null;
+  return b;
+}
+
+function loadSaves(){
+  let raw = null;
+  try{ raw = localStorage.getItem(SAVES_KEY); }catch(err){ return; }
+  if (!raw) return;
+  try{
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) throw new Error("muoto");
+    saves = arr.map(readSave).filter(Boolean).slice(0, SAVES_MAX);
+  }catch(err){
+    saves = [];
+    try{ localStorage.removeItem(SAVES_KEY); }catch(e){}
+  }
+}
+
+function storeSaves(){
+  try{ localStorage.setItem(SAVES_KEY, JSON.stringify(saves)); }
+  catch(err){ alert("Tallennustila on täynnä. Poista vanhoja otoksia."); }
+}
+
+const noteTotal = b => b.lanes.reduce((s, l) => s + l.length, 0);
+
+function whenText(ts){
+  const d = new Date(ts);
+  const p = x => String(x).padStart(2, "0");
+  return d.getDate() + "." + (d.getMonth() + 1) + ". " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+function whatText(b){
+  const used = b.lanes.map((l, i) => l.length ? TRACKS[i].name : null).filter(Boolean);
+  return NOTE_NAMES[b.root] + " " + b.scale.toLowerCase()
+       + " · " + b.bpm + " BPM · " + noteTotal(b) + " nuottia"
+       + " · " + used.join(", ");
+}
+
+function applyBundle(b){
+  for (let t = 0; t < TRACKS.length; t++){
+    lanes[t].length = 0;
+    for (const it of b.lanes[t]) lanes[t].push(Object.assign({}, it));
+    cursors[t] = lanes[t].length;
+    octaves[t] = b.octaves[t];
+    vols[t]    = b.vols[t];
+    applyVol(t);
+  }
+  kickVol = b.kickVol; applyVol("kick");
+  state.root = b.root; state.scale = b.scale; bpm = b.bpm;
+  rootSel.value = state.root; scaleSel.value = state.scale;
+  clearSel();
+  drawTempo();
+  buildBoard();
+  drawSeq();
+}
+
+function drawSaves(){
+  savePanel.textContent = "";
+
+  const add = document.createElement("button");
+  add.type = "button";
+  add.id = "savenow";
+  add.textContent = "Tallenna nykyinen";
+  add.disabled = !lanes.some(l => l.length);
+  add.addEventListener("click", () => {
+    if (saves.length >= SAVES_MAX){ alert("Otoksia on jo " + SAVES_MAX + ". Poista vanhoja ensin."); return; }
+    saves.unshift(stateBundle());
+    storeSaves();
+    drawSaves();
+  });
+  savePanel.append(add);
+
+  const list = document.createElement("div");
+  list.id = "savelist";
+
+  if (!saves.length){
+    const e = document.createElement("div");
+    e.id = "saveempty";
+    e.textContent = "Ei tallennettuja otoksia. Tallenne säilyttää kaikki neljä raitaa, sävellajin, tempon, oktaavit ja voimakkuudet.";
+    list.append(e);
+  }
+
+  saves.forEach((b, i) => {
+    const row = document.createElement("div");
+    row.className = "saverow";
+
+    const txt = document.createElement("div");
+    const w1 = document.createElement("div");
+    w1.className = "when"; w1.textContent = whenText(b.ts);
+    const w2 = document.createElement("div");
+    w2.className = "what"; w2.textContent = whatText(b);
+    txt.append(w1, w2);
+
+    const open = document.createElement("button");
+    open.type = "button";
+    open.textContent = "Avaa";
+    open.addEventListener("click", () => {
+      if (lanes.some(l => l.length) && !confirm("Nykyinen työ korvataan. Kumoa palauttaa sen.")) return;
+      stopPlay();
+      snapshot();
+      applyBundle(b);
+      setPanel(null);
+    });
+
+    const drop = document.createElement("button");
+    drop.type = "button";
+    drop.className = "drop";
+    drop.textContent = "Poista";
+    drop.addEventListener("click", () => {
+      if (!confirm("Poistetaanko otos " + whenText(b.ts) + "?")) return;
+      saves.splice(i, 1);
+      storeSaves();
+      drawSaves();
+    });
+
+    row.append(txt, open, drop);
+    list.append(row);
+  });
+
+  savePanel.append(list);
+}
+
 /* ---------- mikseri ---------- */
 
 function volRow(label, get, set){
@@ -1064,15 +1288,27 @@ function buildMixer(){
   mixerEl.append(hint);
 }
 
-function setMixing(on){
-  mixing = on;
-  mixBtn.classList.toggle("on", on);
-  mixerEl.classList.toggle("show", on);
-  boardEl.classList.toggle("hide", on);
-  if (on){ wakeAudio(); buildMixer(); allKeysUp(); }
+// Vain yksi paneeli kerrallaan; kumpikin korvaa koskettimiston.
+function setPanel(name){
+  mixing = name === "mix";
+  const showSaves = name === "saves";
+  mixBtn.classList.toggle("on", mixing);
+  saveBtn.classList.toggle("on", showSaves);
+  mixerEl.classList.toggle("show", mixing);
+  savePanel.classList.toggle("show", showSaves);
+  boardEl.classList.toggle("hide", mixing || showSaves);
+  allKeysUp();
+  if (mixing){ wakeAudio(); buildMixer(); }
+  if (showSaves) drawSaves();
 }
 
-mixBtn.addEventListener("click", () => { setMixing(!mixing); mixBtn.blur(); });
+function setMixing(on){ setPanel(on ? "mix" : null); }
+
+mixBtn.addEventListener("click",  () => { setPanel(mixing ? null : "mix"); mixBtn.blur(); });
+saveBtn.addEventListener("click", () => {
+  setPanel(savePanel.classList.contains("show") ? null : "saves");
+  saveBtn.blur();
+});
 
 /* ---------- tempo ja kick ---------- */
 
@@ -1449,7 +1685,7 @@ window.addEventListener("keydown", e => {
     return;
   }
 
-  if (e.code === "Escape")     { e.preventDefault(); if (mixing) setMixing(false); else { clearSel(); drawSeq(); } return; }
+  if (e.code === "Escape")     { e.preventDefault(); if (mixing || savePanel.classList.contains("show")) setPanel(null); else { clearSel(); drawSeq(); } return; }
   if (e.code === "ArrowUp")    { e.preventDefault(); shiftOctave(+1); return; }
   if (e.code === "ArrowDown")  { e.preventDefault(); shiftOctave(-1); return; }
   if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); clearSel(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }
@@ -1491,6 +1727,7 @@ scaleSel.addEventListener("change", e => { state.scale = e.target.value;        
 document.addEventListener("pointerdown", wakeAudio, { once:true });
 
 loadState();
+loadSaves();
 rootSel.value  = state.root;
 scaleSel.value = state.scale;
 modeBtn.textContent = playAll ? "Kaikki" : "Raita";

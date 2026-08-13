@@ -869,36 +869,56 @@ function blip(midi){
 /* ---------- toisto ---------- */
 
 let voices = [], starts = [], playEnd = 0, playRaf = 0, isPlaying = false;
-let fromIdx = 0, playIdx = -1;   // aloituskohta ja parhaillaan soiva nuotti
+let fromIdx = 0, toIdx = -1, playIdx = -1;   // toistoikkuna ja soiva nuotti
 let looping = false;
 
-// from = mistä nuotista raita alkaa. Ohitetut nuotit saavat merkkiajaksi
-// at0:n, jotta nauhan korostuslogiikka pysyy indeksien kanssa linjassa.
-function scheduleLane(t, at0, from){
+// Toistoikkuna on absoluuttista aikaa (perusmitoissa), ei nuotti-indeksejä.
+// Näin sama ikkuna koskee kaikkia raitoja: kun kuuntelet tahteja 5-6, kuulet
+// jokaiselta raidalta juuri sen kohdan. u1 = null tarkoittaa loppuun asti.
+// Ikkunan ulkopuoliset nuotit saavat merkkiajaksi at0:n, jotta nauhan
+// korostuslogiikka pysyy indeksien kanssa linjassa.
+const EPS = 1e-9;
+
+function scheduleLane(t, at0, u0, u1){
   const s = step();
-  const skip = from || 0;
-  let time = at0;
+  let u = 0, end = at0;
   const marks = [];
-  for (let i = 0; i < lanes[t].length; i++){
-    const it = lanes[t][i];
-    if (i < skip){ marks.push(at0); continue; }
+  for (const it of lanes[t]){
+    const st = u;
+    u += it.d;
+    if (st < u0 - EPS || (u1 !== null && st >= u1 - EPS)){ marks.push(at0); continue; }
+    const at  = at0 + (st - u0) * s;
     const len = s * it.d;
-    marks.push(time);
-    if (!isRest(it)) voices.push(laneVoice(t, it.n, time, len));
-    time += len;
+    marks.push(at);
+    if (!isRest(it)) voices.push(laneVoice(t, it.n, at, len));
+    if (at + len > end) end = at + len;
   }
-  return { end: time, marks: marks };
+  return { end: end, marks: marks };
 }
 
-// from = aloitusnuotti aktiivisella raidalla. Muut raidat alkavat aina
-// alusta: ne ovat eri mittaisia, joten samaa "kohtaa" ei ole olemassa.
+// from = aloitusnuotti aktiivisella raidalla. Jos alue on valittuna, se
+// määrää toistoikkunan kokonaan — silmukka kiertää silloin vain sitä.
 function startPlay(from){
   const anything = playAll ? lanes.some(l => l.length) : seq().length;
   if (!anything) return;
 
-  const skip = Math.max(0, Math.min(seq().length - 1, from || 0));
+  const lane = seq();
+  let u0 = 0, u1 = null;
 
-  stopPlay();
+  if (hasSel()){
+    for (let i = 0; i < selLo(); i++) u0 += lane[i].d;
+    u1 = u0;
+    for (let i = selLo(); i <= selHi(); i++) u1 += lane[i].d;
+    fromIdx = selLo();
+    toIdx   = selHi();
+  } else {
+    const skip = Math.max(0, Math.min(lane.length - 1, from || 0));
+    for (let i = 0; i < skip; i++) u0 += lane[i].d;
+    fromIdx = skip;
+    toIdx   = lane.length - 1;
+  }
+
+  stopPlay(true);
   wakeAudio();
   noteOff(0.05);
 
@@ -906,22 +926,18 @@ function startPlay(from){
   voices = [];
   let end = at0;
 
-  if (playAll){
-    for (let t = 0; t < TRACKS.length; t++){
-      const r = scheduleLane(t, at0, t === active ? skip : 0);
-      if (t === active) starts = r.marks;
-      if (r.end > end) end = r.end;
-    }
-  } else {
-    const r = scheduleLane(active, at0, skip);
-    starts = r.marks;
-    end = r.end;
+  for (let t = 0; t < TRACKS.length; t++){
+    if (!playAll && t !== active) continue;
+    const r = scheduleLane(t, at0, u0, u1);
+    if (t === active) starts = r.marks;
+    if (r.end > end) end = r.end;
   }
 
-  playEnd = end;
+  // Silmukan pituus on ikkunan mitta, ei viimeisen nuotin loppu — muuten
+  // kierto venyisi pitkän nuotin jälkikaiun verran pidemmäksi.
+  playEnd = u1 !== null ? at0 + (u1 - u0) * step() : end;
   isPlaying = true;
-  fromIdx = skip;
-  (skip ? hereBtn : playBtn).classList.add("on");
+  (fromIdx ? hereBtn : playBtn).classList.add("on");
   playBtn.innerHTML = "&#9632;";
   hereBtn.innerHTML = "&#9632;";
   playBtn.setAttribute("aria-label", "Pysäytä");
@@ -929,7 +945,7 @@ function startPlay(from){
   tickPlay();
 }
 
-function stopPlay(){
+function stopPlay(restarting){
   if (playRaf) cancelAnimationFrame(playRaf);
   playRaf = 0;
   if (voices.length && ac){
@@ -952,7 +968,7 @@ function stopPlay(){
   hereBtn.innerHTML = "&#9654;|";
   playBtn.setAttribute("aria-label", "Toista alusta");
   markPlay(-1);
-  fromIdx = 0;
+  if (!restarting){ fromIdx = 0; toIdx = -1; }
   if (kickMode !== "off") metroStart();
 }
 
@@ -964,7 +980,8 @@ function tickPlay(){
     return;
   }
   let i = -1;
-  for (let k = fromIdx; k < starts.length; k++){ if (now >= starts[k]) i = k; else break; }
+  const last = Math.min(toIdx, starts.length - 1);
+  for (let k = fromIdx; k <= last; k++){ if (now >= starts[k]) i = k; else break; }
   playIdx = i;
   markPlay(i);
   playRaf = requestAnimationFrame(tickPlay);

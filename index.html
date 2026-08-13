@@ -135,12 +135,12 @@
   #tabs button span{font-size:9px;opacity:.5;}
   #tabs button.on{background:#0B0E12;color:var(--tonic);}
   #tabs button.on span{opacity:.7;}
-  #mixbtn,#savebtn{
-    flex:0 0 44px;border:none;border-radius:0;background:transparent;
+  #mixbtn,#savebtn,#lanesbtn{
+    flex:0 0 40px;border:none;border-radius:0;background:transparent;
     color:var(--text);font-size:10px;letter-spacing:.05em;
     border-left:1px solid var(--line);
   }
-  #mixbtn.on,#savebtn.on{background:#0B0E12;color:var(--tonic);}
+  #mixbtn.on,#savebtn.on,#lanesbtn.on{background:#0B0E12;color:var(--tonic);}
 
   #strip{
     flex:0 0 auto;display:none;flex-direction:column;
@@ -260,6 +260,47 @@
   .saverow .drop{border-color:var(--rec);color:var(--rec);}
   #saveempty{font-size:11px;opacity:.5;line-height:1.5;padding:6px 2px;}
 
+  /* ---- raitojen yhteisnäkymä ----
+     Kaikki neljä raitaa samalla aika-akselilla: nuotin leveys on suoraan
+     verrannollinen kestoon ja rivit alkavat samasta kohdasta, joten
+     päällekkäisyydet näkyvät sellaisinaan. Tahtiruudukko piirretään
+     taustaan, jolloin se on absoluuttista aikaa eikä raidan omaa summaa. */
+  #lanes{
+    flex:1 1 auto;min-height:0;display:none;
+    flex-direction:column;gap:4px;padding:5px 6px;
+  }
+  #lanes.show{display:flex;}
+  .lane{flex:1 1 0;min-height:0;display:flex;align-items:stretch;gap:6px;}
+  .lane .lbl{
+    flex:0 0 58px;min-width:0;overflow:hidden;
+    display:flex;flex-direction:column;justify-content:center;
+    font-size:10px;line-height:1.3;color:var(--text);
+  }
+  .lane .lbl i{font-style:normal;opacity:.5;font-size:9px;}
+  .lane.on .lbl{color:var(--tonic);}
+  .lane .track{
+    flex:1 1 auto;min-width:0;
+    overflow-x:auto;overflow-y:hidden;
+    background:#0B0E12;border:1px solid #161C24;border-radius:5px;
+    scrollbar-width:none;
+  }
+  .lane .track::-webkit-scrollbar{display:none;}
+  .lane.on .track{border-color:#2A3B49;}
+  .lane .inner{position:relative;height:100%;}
+  .lane .nb{
+    position:absolute;top:5px;bottom:5px;
+    border-radius:3px;background:var(--key);color:var(--ink);
+    font-size:10px;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .lane .nb.rest{background:#1B222C;}
+  .lane .nb.cur{box-shadow:0 0 0 2px var(--key-on);}
+  .lane .cursorline{
+    position:absolute;top:2px;bottom:2px;width:2px;
+    background:var(--tonic);border-radius:1px;
+  }
+
   /* ---- nauhoituksen reunavalo ----
      Kiinteä kehys ruudun reunoilla. Hidas hengittävä sykintä: näkyy
      selvästi silmäkulmasta, mutta ei vilku eikä vie huomiota soitolta. */
@@ -329,8 +370,9 @@
 
 <div id="trackrow">
   <div id="tabs"></div>
-  <button id="mixbtn"  type="button">Ääni</button>
-  <button id="savebtn" type="button">Otos</button>
+  <button id="lanesbtn" type="button">Rivit</button>
+  <button id="mixbtn"   type="button">Ääni</button>
+  <button id="savebtn"  type="button">Otos</button>
 </div>
 
 <div id="strip">
@@ -368,6 +410,7 @@
 
 <div id="mixer"></div>
 <div id="savepanel"></div>
+<div id="lanes"></div>
 <div id="board"></div>
 
 <div id="recglow" aria-hidden="true"></div>
@@ -971,6 +1014,8 @@ const mixBtn   = document.getElementById("mixbtn");
 const mixerEl  = document.getElementById("mixer");
 const saveBtn  = document.getElementById("savebtn");
 const savePanel= document.getElementById("savepanel");
+const lanesBtn = document.getElementById("lanesbtn");
+const lanesEl  = document.getElementById("lanes");
 const boardEl  = document.getElementById("board");
 const kickBtn  = document.getElementById("kick");
 const bpmNow   = document.getElementById("bpmnow");
@@ -1240,6 +1285,7 @@ function drawSeq(){
   nextBtn.disabled = cur >= lane.length;
 
   drawTracks();
+  if (lanesEl.classList.contains("show")) drawLanes();
   saveState();
 }
 
@@ -1559,6 +1605,109 @@ function drawSaves(){
   savePanel.append(list);
 }
 
+/* ---------- raitojen yhteisnäkymä ---------- */
+
+const LANE_PX  = 18;                      // pikseliä perusmittaa (1) kohden
+const BAR_PX   = LANE_PX * UNITS_PER_BAR; // yhden tahdin leveys
+
+let laneScroll = 0;                       // yhteinen vaakasijainti
+let syncing    = false;                   // estää vieritysten kehäreaktion
+
+const laneUnits = t => lanes[t].reduce((a, it) => a + it.d, 0);
+
+function drawLanes(){
+  const span = Math.max(8, ...TRACKS.map((x, t) => laneUnits(t)));
+  const wide = span * LANE_PX + 40;
+
+  lanesEl.textContent = "";
+
+  TRACKS.forEach((cfg, t) => {
+    const row = document.createElement("div");
+    row.className = "lane" + (t === active ? " on" : "");
+
+    const lbl = document.createElement("div");
+    lbl.className = "lbl";
+    const n1 = document.createElement("div");
+    n1.textContent = nameOf(t);
+    const n2 = document.createElement("i");
+    n2.textContent = lanes[t].length ? lanes[t].length + " nt" : "–";
+    lbl.append(n1, n2);
+
+    const track = document.createElement("div");
+    track.className = "track";
+
+    const inner = document.createElement("div");
+    inner.className = "inner";
+    inner.style.width = wide + "px";
+    inner.style.backgroundImage =
+      "repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px " + BAR_PX + "px)";
+
+    let at = 0;
+    lanes[t].forEach((it, i) => {
+      const nb = document.createElement("div");
+      nb.className = "nb" + (isRest(it) ? " rest" : "")
+                   + (t === active && i === cursors[active] - 1 ? " cur" : "");
+      nb.style.left  = (at * LANE_PX) + "px";
+      nb.style.width = Math.max(3, it.d * LANE_PX - 2) + "px";
+      // Nimi vain jos se mahtuu; muuten laatikko jää tyhjäksi palkiksi.
+      if (!isRest(it) && it.d * LANE_PX >= 30) nb.textContent = midiToName(it.n);
+      inner.append(nb);
+      at += it.d;
+    });
+
+    if (t === active){
+      let cx = 0;
+      for (let i = 0; i < cursors[active] && i < lanes[t].length; i++) cx += lanes[t][i].d;
+      const cl = document.createElement("div");
+      cl.className = "cursorline";
+      cl.style.left = (cx * LANE_PX - 1) + "px";
+      inner.append(cl);
+    }
+
+    track.append(inner);
+
+    track.addEventListener("scroll", () => {
+      if (syncing) return;
+      syncing = true;
+      laneScroll = track.scrollLeft;
+      for (const o of lanesEl.querySelectorAll(".track")) if (o !== track) o.scrollLeft = laneScroll;
+      syncing = false;
+    });
+
+    // Napautus valitsee raidan ja nuotin; muokkaus tapahtuu tutuilla napeilla.
+    track.addEventListener("click", e => {
+      stopPlay();
+      const r = track.getBoundingClientRect();
+      const x = (e.clientX - r.left + track.scrollLeft) / LANE_PX;
+
+      if (t !== active){ allKeysUp(); clearSel(); active = t; buildBoard(); }
+
+      const lane = lanes[t];
+      let acc = 0, hit = lane.length;
+      for (let i = 0; i < lane.length; i++){
+        if (x < acc + lane[i].d){ hit = i; break; }
+        acc += lane[i].d;
+      }
+      if (hit < lane.length){
+        cursors[t] = hit + 1;
+        if (!isRest(lane[hit])) blip(lane[hit].n);
+      } else {
+        cursors[t] = lane.length;
+      }
+      clearSel();
+      drawSeq();
+    });
+
+    row.append(lbl, track);
+    lanesEl.append(row);
+  });
+
+  // Palautetaan yhteinen vieritys uudelleenpiirron jälkeen.
+  syncing = true;
+  for (const o of lanesEl.querySelectorAll(".track")) o.scrollLeft = laneScroll;
+  syncing = false;
+}
+
 /* ---------- mikseri ---------- */
 
 function volRow(label, get, set){
@@ -1652,19 +1801,28 @@ function buildMixer(){
 function setPanel(name){
   mixing = name === "mix";
   const showSaves = name === "saves";
+  const showLanes = name === "lanes";
   mixBtn.classList.toggle("on", mixing);
   saveBtn.classList.toggle("on", showSaves);
+  lanesBtn.classList.toggle("on", showLanes);
   mixerEl.classList.toggle("show", mixing);
   savePanel.classList.toggle("show", showSaves);
-  boardEl.classList.toggle("hide", mixing || showSaves);
+  lanesEl.classList.toggle("show", showLanes);
+  boardEl.classList.toggle("hide", mixing || showSaves || showLanes);
   allKeysUp();
   if (mixing){ wakeAudio(); buildMixer(); }
   if (showSaves) drawSaves();
+  if (showLanes) drawLanes();
 }
 
 function setMixing(on){ setPanel(on ? "mix" : null); }
 
 mixBtn.addEventListener("click",  () => { setPanel(mixing ? null : "mix"); mixBtn.blur(); });
+lanesBtn.addEventListener("click", () => {
+  setPanel(lanesEl.classList.contains("show") ? null : "lanes");
+  lanesBtn.blur();
+});
+
 saveBtn.addEventListener("click", () => {
   setPanel(savePanel.classList.contains("show") ? null : "saves");
   saveBtn.blur();
@@ -2051,7 +2209,7 @@ window.addEventListener("keydown", e => {
     return;
   }
 
-  if (e.code === "Escape")     { e.preventDefault(); if (mixing || savePanel.classList.contains("show")) setPanel(null); else { clearSel(); drawSeq(); } return; }
+  if (e.code === "Escape")     { e.preventDefault(); if (mixing || savePanel.classList.contains("show") || lanesEl.classList.contains("show")) setPanel(null); else { clearSel(); drawSeq(); } return; }
   if (e.code === "ArrowUp")    { e.preventDefault(); shiftOctave(+1); return; }
   if (e.code === "ArrowDown")  { e.preventDefault(); shiftOctave(-1); return; }
   if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); clearSel(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }

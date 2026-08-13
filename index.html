@@ -258,6 +258,28 @@
   .saverow .drop{border-color:var(--rec);color:var(--rec);}
   #saveempty{font-size:11px;opacity:.5;line-height:1.5;padding:6px 2px;}
 
+  /* ---- nauhoituksen reunavalo ----
+     Kiinteä kehys ruudun reunoilla. Hidas hengittävä sykintä: näkyy
+     selvästi silmäkulmasta, mutta ei vilku eikä vie huomiota soitolta. */
+  #recglow{
+    position:fixed;inset:0;z-index:50;
+    pointer-events:none;display:none;
+    border:3px solid var(--rec);
+    opacity:0;
+  }
+  body.rec #recglow{
+    display:block;
+    animation:recpulse 2.4s ease-in-out infinite;
+  }
+  @keyframes recpulse{
+    0%,100%{opacity:.20;}
+    50%    {opacity:.80;}
+  }
+  /* Jos käyttäjä on estänyt liikkeen, kehys palaa tasaisesti. */
+  @media (prefers-reduced-motion:reduce){
+    body.rec #recglow{animation:none;opacity:.55;}
+  }
+
   #board{
     flex:1 1 auto;min-height:0;
     display:flex;flex-direction:column;gap:4px;
@@ -341,6 +363,8 @@
 <div id="mixer"></div>
 <div id="savepanel"></div>
 <div id="board"></div>
+
+<div id="recglow" aria-hidden="true"></div>
 
 <script>
 "use strict";
@@ -1241,6 +1265,7 @@ recBtn.addEventListener("click", () => {
   armed = !armed;
   if (armed){ stopPlay(); clearSel(); if (mixing) setMixing(false); }
   recBtn.classList.toggle("armed", armed);
+  document.body.classList.toggle("rec", armed);
   recBtn.textContent = armed ? "Seis" : "Nauhoita";
   recBtn.blur();
   drawSeq();

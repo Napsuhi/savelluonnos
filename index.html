@@ -56,11 +56,20 @@
     border-bottom:1px solid var(--line);
   }
   #bar label{
+    position:relative;
     display:flex;align-items:center;gap:4px;
     font-size:9px;letter-spacing:.08em;text-transform:uppercase;
     white-space:nowrap;min-width:0;
   }
   #scale{max-width:150px;text-overflow:ellipsis;}
+  #bar select{padding-right:20px;}
+  #bar label::after{
+    content:"";position:absolute;right:7px;top:50%;
+    width:0;height:0;margin-top:-1px;pointer-events:none;
+    border-left:4px solid transparent;
+    border-right:4px solid transparent;
+    border-top:5px solid var(--text);
+  }
   #rec{
     margin-left:auto;
     border-color:var(--rec);color:var(--rec);
@@ -198,7 +207,19 @@
   .mixblock{display:flex;flex-direction:column;gap:3px;}
   .mixhead{display:flex;align-items:center;gap:9px;}
   .mixhead b{flex:0 0 22px;font-weight:600;font-size:12px;color:var(--text);}
-  .mixhead select{flex:1 1 auto;min-width:0;font-size:13px;padding:6px 8px;}
+  .selwrap{position:relative;flex:1 1 auto;min-width:0;display:flex;}
+  .selwrap select{
+    flex:1 1 auto;min-width:0;
+    font-size:13px;padding:8px 30px 8px 10px;
+    border-color:#3A4A5E;color:var(--tonic);
+  }
+  .selwrap::after{
+    content:"";position:absolute;right:11px;top:50%;
+    width:0;height:0;margin-top:-2px;pointer-events:none;
+    border-left:5px solid transparent;
+    border-right:5px solid transparent;
+    border-top:6px solid var(--tonic);
+  }
   .mixrow{display:flex;align-items:center;gap:10px;padding-left:31px;}
   .mixrow b{flex:0 0 62px;font-weight:600;font-size:12px;color:var(--key);}
   .mixrow input{flex:1 1 auto;min-width:0;accent-color:var(--tonic);height:24px;}
@@ -1405,6 +1426,8 @@ function buildMixer(){
     const num = document.createElement("b");
     num.textContent = (i + 1) + ".";
 
+    const wrap = document.createElement("div");
+    wrap.className = "selwrap";
     const sel = document.createElement("select");
     PRESETS.forEach((p, k) => sel.add(new Option(p.name, k)));
     sel.value = presets[i];
@@ -1419,7 +1442,8 @@ function buildMixer(){
       }
     });
 
-    head.append(num, sel);
+    wrap.append(sel);
+    head.append(num, wrap);
     block.append(head, volRow("", () => vols[i], v => { vols[i] = v; applyVol(i); }));
     mixerEl.append(block);
   });

@@ -94,7 +94,7 @@
   #octbox,#tempobox{display:flex;align-items:stretch;min-width:0;}
   #octbox{flex:1 1 58%;border-right:1px solid var(--line);}
   #tempobox{flex:1 1 42%;}
-  #octdown,#octup{width:40px;text-align:center;}
+  #octdown,#octup{width:58px;text-align:center;font-size:11px;letter-spacing:.03em;}
   #bpmdown,#bpmup{width:32px;text-align:center;font-size:15px;}
   #octnow{
     flex:1 1 auto;min-width:0;
@@ -194,7 +194,9 @@
   .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
   .btnrow:last-child{padding-bottom:6px;}
   .btnrow button{padding:6px 5px;font-size:12px;flex:1 1 0;}
-  #shorter,#longer,#down,#up,#play,#playhere,#loop{flex:0 0 42px;text-align:center;font-size:14px;line-height:1;}
+  #prev,#next,#shorter,#longer,#down,#up,#play,#playhere,#loop{flex:0 0 42px;text-align:center;font-size:14px;line-height:1;}
+  #prev,#next{border-color:#3A4A5E;font-size:12px;}
+  .btnrow.wide button{font-size:11px;padding:6px 2px;}
   #down,#up{border-color:#3A4A5E;}
   #loop{border-color:#3A4A5E;font-size:16px;}
   #loop.on{border-color:var(--key-on);color:var(--key-on);}
@@ -313,9 +315,9 @@
 
 <div id="midrow">
   <div id="octbox">
-    <button id="octdown" type="button" aria-label="Oktaavi alas">&#9660;</button>
+    <button id="octdown" type="button" aria-label="Oktaavi alas">OKT&#9660;</button>
     <span id="octnow"></span>
-    <button id="octup" type="button" aria-label="Oktaavi ylös">&#9650;</button>
+    <button id="octup" type="button" aria-label="Oktaavi ylös">&#9650;OKT</button>
   </div>
   <div id="tempobox">
     <button id="kick" type="button">Kick</button>
@@ -336,15 +338,19 @@
     <span id="count">0</span>
     <div id="notes"></div>
   </div>
+  <!-- rivi 1: kohdistin ja nykyinen nuotti -->
   <div class="btnrow">
+    <button id="prev"    type="button" aria-label="Edellinen nuotti" disabled>&#9664;</button>
+    <button id="next"    type="button" aria-label="Seuraava nuotti" disabled>&#9654;</button>
     <button id="shorter" type="button" aria-label="Lyhennä" disabled>&#8722;</button>
     <button id="longer"  type="button" aria-label="Pidennä" disabled>+</button>
     <button id="down"    type="button" aria-label="Aste alas" disabled>&#9660;</button>
     <button id="up"      type="button" aria-label="Aste ylös" disabled>&#9650;</button>
-    <button id="rest"    type="button">Tauko</button>
-    <button id="del"     type="button" disabled>Poista</button>
   </div>
-  <div class="btnrow">
+  <!-- rivi 2: rakenne -->
+  <div class="btnrow wide">
+    <button id="rest"   type="button">Tauko</button>
+    <button id="del"    type="button" disabled>Poista</button>
     <button id="select" type="button" disabled>Valitse</button>
     <button id="copy"   type="button" disabled>Kopioi</button>
     <button id="paste"  type="button" disabled>Liitä</button>
@@ -946,6 +952,8 @@ const playBtn  = document.getElementById("play");
 const hereBtn  = document.getElementById("playhere");
 const loopBtn  = document.getElementById("loop");
 const upBtn    = document.getElementById("up");
+const prevBtn  = document.getElementById("prev");
+const nextBtn  = document.getElementById("next");
 const downBtn  = document.getElementById("down");
 const modeBtn  = document.getElementById("mode");
 const shortBtn = document.getElementById("shorter");
@@ -1228,6 +1236,9 @@ function drawSeq(){
   const movable = range.some(it => !isRest(it));
   upBtn.disabled = downBtn.disabled = !movable;
 
+  prevBtn.disabled = cur === 0;
+  nextBtn.disabled = cur >= lane.length;
+
   drawTracks();
   saveState();
 }
@@ -1281,6 +1292,18 @@ loopBtn.addEventListener("click", () => {
   saveState();
   loopBtn.blur();
 });
+
+// Kohdistimen siirto nappina: sama kuin nuolinäppäimet koneella.
+function moveCursor(dir){
+  stopPlay();
+  clearSel();
+  cursors[active] += dir;
+  drawSeq();
+  auditionAtCursor();
+}
+
+prevBtn.addEventListener("click", () => { moveCursor(-1); prevBtn.blur(); });
+nextBtn.addEventListener("click", () => { moveCursor(+1); nextBtn.blur(); });
 
 upBtn.addEventListener("click",   () => { nudge(+1); upBtn.blur(); });
 downBtn.addEventListener("click", () => { nudge(-1); downBtn.blur(); });

@@ -155,8 +155,10 @@
   }
   #count{
     flex:0 0 auto;align-self:center;
+    display:flex;flex-direction:column;align-items:flex-start;gap:2px;
     font-size:10px;letter-spacing:.06em;color:var(--text);
   }
+  #count .bars{opacity:.55;}
   #notes{
     flex:1 1 auto;min-width:0;
     display:flex;align-items:stretch;gap:2px;
@@ -178,6 +180,11 @@
   #notes span.note.sel{background:var(--line);color:var(--key-on);}
   #notes span.note.sel i{opacity:.85;}
   #notes span.note.playing em{color:var(--key-on);}
+  #notes b.barline{
+    flex:0 0 auto;width:1px;align-self:stretch;
+    margin:2px 3px;
+    background:var(--line);
+  }
   #notes b.caret{
     flex:0 0 auto;width:2px;align-self:stretch;
     margin:4px 0;border-radius:1px;
@@ -187,7 +194,10 @@
   .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
   .btnrow:last-child{padding-bottom:6px;}
   .btnrow button{padding:6px 5px;font-size:12px;flex:1 1 0;}
-  #shorter,#longer,#play,#playhere{flex:0 0 46px;text-align:center;font-size:14px;line-height:1;}
+  #shorter,#longer,#down,#up,#play,#playhere,#loop{flex:0 0 42px;text-align:center;font-size:14px;line-height:1;}
+  #down,#up{border-color:#3A4A5E;}
+  #loop{border-color:#3A4A5E;font-size:16px;}
+  #loop.on{border-color:var(--key-on);color:var(--key-on);}
   #play.on,#playhere.on{border-color:var(--key-on);color:var(--key-on);}
   #playhere{border-color:#3A4A5E;}
   #rest{border-color:var(--rest);}
@@ -207,6 +217,8 @@
   .mixblock{display:flex;flex-direction:column;gap:3px;}
   .mixhead{display:flex;align-items:center;gap:9px;}
   .mixhead b{flex:0 0 22px;font-weight:600;font-size:12px;color:var(--text);}
+  .mixmute{flex:0 0 38px;padding:8px 0;text-align:center;font-size:11px;font-weight:600;}
+  .mixmute.on{border-color:var(--rec);color:var(--rec);}
   .selwrap{position:relative;flex:1 1 auto;min-width:0;display:flex;}
   .selwrap select{
     flex:1 1 auto;min-width:0;
@@ -305,6 +317,8 @@
   <div class="btnrow">
     <button id="shorter" type="button" aria-label="Lyhennä" disabled>&#8722;</button>
     <button id="longer"  type="button" aria-label="Pidennä" disabled>+</button>
+    <button id="down"    type="button" aria-label="Aste alas" disabled>&#9660;</button>
+    <button id="up"      type="button" aria-label="Aste ylös" disabled>&#9650;</button>
     <button id="rest"    type="button">Tauko</button>
     <button id="del"     type="button" disabled>Poista</button>
   </div>
@@ -317,9 +331,10 @@
   <div class="btnrow">
     <button id="play"     type="button" aria-label="Toista alusta" disabled>&#9654;</button>
     <button id="playhere" type="button" aria-label="Toista kohdistimesta" disabled>&#9654;|</button>
+    <button id="loop"     type="button" aria-label="Silmukka">&#8635;</button>
     <button id="mode"     type="button">Raita</button>
-    <button id="undo"   type="button" disabled>Kumoa</button>
-    <button id="export" type="button" disabled>Vie MIDI</button>
+    <button id="undo"     type="button" disabled>Kumoa</button>
+    <button id="export"   type="button" disabled>Vie</button>
   </div>
 </div>
 
@@ -358,10 +373,15 @@ const KB_ROWS = [
 const ROWS    = 3;
 const OCT_MIN = 1, OCT_MAX = 5;
 
-const LENS      = [0.5, 1, 2, 4];
-const LEN_LABEL = { 0.5:"½", 1:"1", 2:"2", 4:"4" };
+// Pituudet nuottiarvoina, perusmitta 1 = kahdeksasosa. Mukana vain oikeita
+// nuottiarvoja: pisteelliset (1.5, 3, 6) mutta ei 2.5:n kaltaisia, joita ei
+// pysty merkitsemään nuoteiksi eikä siksi käyttämään mihinkään.
+const LENS      = [0.25, 0.5, 1, 1.5, 2, 3, 4, 6, 8];
+const LEN_LABEL = { 0.25:"¼", 0.5:"½", 1:"1", 1.5:"1½", 2:"2", 3:"3", 4:"4", 6:"6", 8:"8" };
 
-const BPMS  = [80,90,100,110,120,130,140,150,160];
+const UNITS_PER_BAR = 8;          // 4/4-tahti kahdeksasosina
+
+const BPMS  = [80,90,100,110,120,130,140,150,160,170,180];
 const BEATS_PER_BAR = 4;
 const KICK_MODES = ["off","bar","beat"];
 const KICK_LABEL = { off:"Kick", bar:"Tahti", beat:"Isku" };
@@ -455,6 +475,7 @@ const lanes   = TRACKS.map(() => []);
 const cursors = TRACKS.map(() => 0);
 const octaves = TRACKS.map(t => t.oct);
 const vols    = TRACKS.map(t => t.vol);
+const muted   = TRACKS.map(() => false);
 let kickVol   = 1.0;
 
 let active  = 0;
@@ -482,7 +503,8 @@ const STORE_KEY = "savelluonnos.v1";
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      v:5, lanes:lanes, octaves:octaves, vols:vols, kickVol:kickVol, presets:presets,
+      v:6, lanes:lanes, octaves:octaves, vols:vols, kickVol:kickVol, presets:presets,
+      muted:muted, looping:looping,
       active:active, playAll:playAll, root:state.root, scale:state.scale,
       bpm:bpm, kick:kickMode
     }));
@@ -541,6 +563,11 @@ function loadState(){
       }
     }
 
+    if (Array.isArray(d.muted)){
+      for (let t = 0; t < TRACKS.length; t++) muted[t] = d.muted[t] === true;
+    }
+    if (typeof d.looping === "boolean") looping = d.looping;
+
     if (Number.isInteger(d.active) && d.active >= 0 && d.active < TRACKS.length) active = d.active;
     if (typeof d.playAll === "boolean") playAll = d.playAll;
     if (Number.isInteger(d.root) && d.root >= 0 && d.root < 12) state.root = d.root;
@@ -583,7 +610,7 @@ function wakeAudio(){
 
     trackGain = TRACKS.map((t, i) => {
       const g = ac.createGain();
-      g.gain.value = vols[i];
+      g.gain.value = muted[i] ? 0 : vols[i];
       g.connect(master);
       return g;
     });
@@ -603,7 +630,7 @@ function applyVol(i){
   if (!ac) return;
   const t = ac.currentTime;
   if (i === "kick") kickGain.gain.setTargetAtTime(kickVol, t, 0.01);
-  else trackGain[i].gain.setTargetAtTime(vols[i], t, 0.01);
+  else trackGain[i].gain.setTargetAtTime(muted[i] ? 0 : vols[i], t, 0.01);
 }
 
 const toneLen = (tone, m) => Math.min(tone.len, Math.max(0.35, tone.len * Math.pow(2, -(m - 45) / 26)));
@@ -770,6 +797,7 @@ function blip(midi){
 
 let voices = [], starts = [], playEnd = 0, playRaf = 0, isPlaying = false;
 let fromIdx = 0, playIdx = -1;   // aloituskohta ja parhaillaan soiva nuotti
+let looping = false;
 
 // from = mistä nuotista raita alkaa. Ohitetut nuotit saavat merkkiajaksi
 // at0:n, jotta nauhan korostuslogiikka pysyy indeksien kanssa linjassa.
@@ -857,7 +885,11 @@ function stopPlay(){
 
 function tickPlay(){
   const now = ac.currentTime;
-  if (now >= playEnd){ stopPlay(); return; }
+  if (now >= playEnd){
+    // Silmukka lähtee samasta kohdasta josta toisto aloitettiin.
+    if (looping) startPlay(fromIdx); else stopPlay();
+    return;
+  }
   let i = -1;
   for (let k = fromIdx; k < starts.length; k++){ if (now >= starts[k]) i = k; else break; }
   playIdx = i;
@@ -888,6 +920,9 @@ const countEl  = document.getElementById("count");
 const recBtn   = document.getElementById("rec");
 const playBtn  = document.getElementById("play");
 const hereBtn  = document.getElementById("playhere");
+const loopBtn  = document.getElementById("loop");
+const upBtn    = document.getElementById("up");
+const downBtn  = document.getElementById("down");
 const modeBtn  = document.getElementById("mode");
 const shortBtn = document.getElementById("shorter");
 const longBtn  = document.getElementById("longer");
@@ -909,6 +944,59 @@ const kickBtn  = document.getElementById("kick");
 const bpmNow   = document.getElementById("bpmnow");
 
 function clearSel(){ selecting = false; anchor = -1; focus = -1; }
+
+/* ---------- sävelaskelsiirto ----------
+   Nuotti muunnetaan asteikon "portaikon" indeksiksi ja takaisin. Siirto on
+   siis asteittainen, ei puolisävelaskelittainen: tulos pysyy aina
+   sävellajissa. Sävellajin ulkopuolinen nuotti (esim. sävellajia vaihdettu
+   jälkikäteen) napsahtaa lähimpään alempaan asteeseen.                     */
+
+function toLadder(m){
+  const steps = SCALES[state.scale];
+  const rel = m - state.root;
+  const oct = Math.floor(rel / 12);
+  const pc  = rel - oct * 12;
+  let k = steps.indexOf(pc);
+  if (k < 0){
+    k = 0;
+    for (let i = 0; i < steps.length; i++) if (steps[i] <= pc) k = i;
+  }
+  return oct * steps.length + k;
+}
+
+function fromLadder(idx){
+  const steps = SCALES[state.scale];
+  const oct = Math.floor(idx / steps.length);
+  const k   = idx - oct * steps.length;
+  return state.root + oct * 12 + steps[k];
+}
+
+function nudge(dir){
+  const lane = seq();
+  const lo = hasSel() ? selLo() : (cursors[active] > 0 ? cursors[active] - 1 : -1);
+  const hi = hasSel() ? selHi() : lo;
+  if (lo < 0) return;
+
+  // Ei siirretä mitään, jos yksikin nuotti karkaisi MIDI-alueelta.
+  for (let i = lo; i <= hi; i++){
+    const it = lane[i];
+    if (isRest(it)) continue;
+    const m = fromLadder(toLadder(it.n) + dir);
+    if (m < 0 || m > 127) return;
+  }
+
+  snapshot();
+  let last = -1;
+  for (let i = lo; i <= hi; i++){
+    const it = lane[i];
+    if (isRest(it)) continue;
+    it.n = fromLadder(toLadder(it.n) + dir);
+    last = it.n;
+  }
+  stopPlay();
+  drawSeq();
+  if (lo === hi && last >= 0) blip(last);
+}
 
 /* ---------- undo ----------
    Ennen jokaista nuotteja muuttavaa operaatiota otetaan tilannekuva
@@ -1030,6 +1118,12 @@ function doPaste(){
   drawSeq();
 }
 
+// Leveys kasvaa pituuden mukana, mutta hidastuvasti — muuten kahdeksan
+// yksikön nuotti veisi koko ruudun.
+function noteWidth(d){
+  return Math.round(20 + 26 * Math.min(d, 2) + 10 * Math.max(0, d - 2));
+}
+
 function drawSeq(){
   const lane = seq();
   if (cursors[active] > lane.length) cursors[active] = lane.length;
@@ -1041,8 +1135,15 @@ function drawSeq(){
 
   notesEl.textContent = "";
   let caretEl = null;
+  let units = 0;                     // neljäsosina perusmitasta, kokonaislukuina
 
   for (let i = 0; i <= lane.length; i++){
+    // Tahtiviiva aina kun edelliset nuotit täyttivät tasan tahdin.
+    if (i > 0 && units > 0 && units % (UNITS_PER_BAR * 4) === 0){
+      const bl = document.createElement("b");
+      bl.className = "barline";
+      notesEl.append(bl);
+    }
     if (i === cur && !hasSel()){
       caretEl = document.createElement("b");
       caretEl.className = "caret";
@@ -1057,7 +1158,7 @@ function drawSeq(){
       + (i >= lo && i <= hi ? " range" : "")
       + (!hasSel() && i === cur - 1 ? " sel" : "");
     s.dataset.i = i;
-    s.style.minWidth = (22 + 26 * it.d) + "px";
+    s.style.minWidth = noteWidth(it.d) + "px";
 
     const nm = document.createElement("em");
     nm.textContent = isRest(it) ? "–" : midiToName(it.n);
@@ -1065,11 +1166,20 @@ function drawSeq(){
     ln.textContent = LEN_LABEL[it.d] || "1";
     s.append(nm, ln);
     notesEl.append(s);
+    units += Math.round(it.d * 4);
   }
 
   if (!isPlaying && caretEl) caretEl.scrollIntoView({ block:"nearest", inline:"nearest" });
 
-  countEl.textContent = hasSel() ? (hi - lo + 1) + "/" + lane.length : lane.length;
+  const totalUnits = lane.reduce((a, it) => a + Math.round(it.d * 4), 0);
+  const bars = totalUnits / (UNITS_PER_BAR * 4);
+  countEl.textContent = "";
+  const c1 = document.createElement("div");
+  c1.textContent = hasSel() ? (hi - lo + 1) + "/" + lane.length : String(lane.length);
+  const c2 = document.createElement("div");
+  c2.className = "bars";
+  c2.textContent = (Number.isInteger(bars) ? bars : bars.toFixed(1)) + " t";
+  countEl.append(c1, c2);
   stripEl.classList.toggle("show", armed || lanes.some(l => l.length));
 
   const empty = lane.length === 0;
@@ -1088,6 +1198,11 @@ function drawSeq(){
   const one = !hasSel() && cur > 0 ? lane[cur - 1] : null;
   shortBtn.disabled = hasSel() ? false : (!one || one.d === LENS[0]);
   longBtn.disabled  = hasSel() ? false : (!one || one.d === LENS[LENS.length - 1]);
+
+  // Sävelaskelsiirto vaatii vähintään yhden oikean nuotin, ei pelkkiä taukoja.
+  const range = hasSel() ? lane.slice(lo, hi + 1) : (one ? [one] : []);
+  const movable = range.some(it => !isRest(it));
+  upBtn.disabled = downBtn.disabled = !movable;
 
   drawTracks();
   saveState();
@@ -1135,6 +1250,16 @@ playBtn.addEventListener("click",  () => { isPlaying ? stopPlay() : startPlay(0)
 
 // Toinen play jatkaa kohdistimesta. Kesken toiston se on tauko: kohdistin
 // jää siihen nuottiin joka juuri soi, joten uusi painallus jatkaa siitä.
+loopBtn.addEventListener("click", () => {
+  looping = !looping;
+  loopBtn.classList.toggle("on", looping);
+  saveState();
+  loopBtn.blur();
+});
+
+upBtn.addEventListener("click",   () => { nudge(+1); upBtn.blur(); });
+downBtn.addEventListener("click", () => { nudge(-1); downBtn.blur(); });
+
 hereBtn.addEventListener("click", () => {
   if (isPlaying){
     const at = playIdx;
@@ -1443,7 +1568,19 @@ function buildMixer(){
     });
 
     wrap.append(sel);
-    head.append(num, wrap);
+    const mute = document.createElement("button");
+    mute.type = "button";
+    mute.className = "mixmute" + (muted[i] ? " on" : "");
+    mute.textContent = "M";
+    mute.addEventListener("click", () => {
+      muted[i] = !muted[i];
+      mute.classList.toggle("on", muted[i]);
+      applyVol(i);
+      saveState();
+      mute.blur();
+    });
+
+    head.append(num, wrap, mute);
     block.append(head, volRow("", () => vols[i], v => { vols[i] = v; applyVol(i); }));
     mixerEl.append(block);
   });
@@ -1854,6 +1991,12 @@ window.addEventListener("keydown", e => {
   }
   if (e.altKey) return;
 
+  if (e.shiftKey && (e.code === "ArrowUp" || e.code === "ArrowDown")){
+    e.preventDefault();
+    nudge(e.code === "ArrowUp" ? +1 : -1);
+    return;
+  }
+
   if (e.shiftKey && (e.code === "ArrowLeft" || e.code === "ArrowRight")){
     e.preventDefault(); stopPlay();
     extendSel(e.code === "ArrowLeft" ? -1 : +1);
@@ -1869,6 +2012,7 @@ window.addEventListener("keydown", e => {
   if (e.code === "Space")      { e.preventDefault(); stopPlay(); insertAtCursor({ r:true, d:1 }); return; }
   if (e.code === "Minus" || e.code === "NumpadSubtract"){ e.preventDefault(); changeLen(-1); return; }
   if (e.code === "Equal" || e.code === "NumpadAdd")     { e.preventDefault(); changeLen(+1); return; }
+  if (e.code === "KeyL")       { e.preventDefault(); loopBtn.click(); return; }
   if (e.code === "Comma")      { e.preventDefault(); changeBpm(-1); return; }
   if (e.code === "Period")     { e.preventDefault(); changeBpm(+1); return; }
 
@@ -1908,6 +2052,7 @@ scaleSel.value = state.scale;
 modeBtn.textContent = playAll ? "Kaikki" : "Raita";
 modeBtn.classList.toggle("all", playAll);
 drawTempo();
+loopBtn.classList.toggle("on", looping);
 buildBoard();
 drawSeq();
 </script>

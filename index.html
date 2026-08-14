@@ -283,6 +283,19 @@
   #drone.on{border-color:var(--key-on);color:var(--key-on);}
   #apply{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #findhint{font-size:9px;line-height:1.45;opacity:.45;}
+  .findhead{display:flex;align-items:center;gap:8px;}
+  .findhead .findlbl{flex:1 1 auto;}
+  .findhead button{flex:0 0 auto;padding:3px 7px;font-size:9px;}
+  #sieve{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;}
+  #sieve button{
+    padding:6px 0;font-size:12px;line-height:1;
+    display:flex;flex-direction:column;align-items:center;gap:2px;
+  }
+  #sieve button i{font-style:normal;font-size:9px;opacity:.45;}
+  #sieve button.yes i,#sieve button.no i{opacity:.8;}
+  #sieve button.yes{border-color:var(--tonic);color:var(--tonic);background:#0F1A1C;}
+  #sieve button.no{border-color:var(--rec);color:var(--rec);background:#1A0F11;}
+  #scalelist button.out{opacity:.28;}
   #finder .mixrow{padding-left:0;}
   #finder .mixrow b{flex:0 0 46px;font-size:11px;}
 
@@ -1732,6 +1745,24 @@ function stopDrone(){
   if (b) b.classList.remove("on");
 }
 
+// Seula: jokaiselle sävelasteelle kolme tilaa — testaamaton, sopii, ei sovi.
+// Sävellajilista suodattuu sen mukaan. Tämä on sama katoamistesti kuin
+// juurisävelellä, mutta yhdelle sävelelle kerrallaan: bordunan päälle
+// soitettu väärä sävel riitelee biisin kanssa kuuluvasti.
+const DEG_LABEL = ["1","♭2","2","♭3","3","4","♯4","5","♭6","6","♭7","7"];
+const sieve = new Array(12).fill(0);
+
+function scaleFits(name){
+  const set = SCALES[name];
+  for (let pc = 0; pc < 12; pc++){
+    if (sieve[pc] === 0) continue;
+    const inScale = set.indexOf(pc) >= 0;
+    if (sieve[pc] === 1 && !inScale) return false;
+    if (sieve[pc] === -1 && inScale) return false;
+  }
+  return true;
+}
+
 function drawFinder(){
   finderEl.textContent = "";
 
@@ -1764,10 +1795,48 @@ function drawFinder(){
   });
   finderEl.append(roots);
 
+  const head = document.createElement("div");
+  head.className = "findhead";
   const l2 = document.createElement("div");
   l2.className = "findlbl";
-  l2.textContent = "2. Sävellaji";
-  finderEl.append(l2);
+  l2.textContent = "2. Sopiiko sävel? — 1. napautus kyllä, 2. ei";
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.textContent = "Nollaa";
+  reset.addEventListener("click", () => { sieve.fill(0); drawFinder(); reset.blur(); });
+  head.append(l2, reset);
+  finderEl.append(head);
+
+  const sv = document.createElement("div");
+  sv.id = "sieve";
+  DEG_LABEL.forEach((lab, pc) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    const dg = document.createElement("span");
+    dg.textContent = lab;
+    // Sävelnimi mukaan: korvakuulolta testataan säveliä, ei asteita.
+    const nm = document.createElement("i");
+    nm.textContent = NOTE_NAMES[(findRoot + pc) % 12];
+    b.append(dg, nm);
+    if (sieve[pc] === 1)  b.className = "yes";
+    if (sieve[pc] === -1) b.className = "no";
+    b.addEventListener("click", () => {
+      wakeAudio();
+      // Sävel soi pitkään bordunan päällä, jotta riitely ehtii kuulua.
+      voice(findBase() + 12 + pc, ac.currentTime, 2.2, FIND_TONE, master);
+      sieve[pc] = sieve[pc] === 0 ? 1 : (sieve[pc] === 1 ? -1 : 0);
+      drawFinder();
+    });
+    sv.append(b);
+  });
+  finderEl.append(sv);
+
+  const fits = Object.keys(SCALES).filter(scaleFits);
+
+  const l3 = document.createElement("div");
+  l3.className = "findlbl";
+  l3.textContent = "3. Sävellaji — " + fits.length + " mahdollista";
+  finderEl.append(l3);
 
   const list = document.createElement("div");
   list.id = "scalelist";
@@ -1775,7 +1844,10 @@ function drawFinder(){
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = name;
-    if (name === findScale) b.className = "on";
+    let cls = "";
+    if (name === findScale) cls = "on";
+    if (fits.indexOf(name) < 0) cls += " out";
+    b.className = cls.trim();
     b.addEventListener("click", () => {
       findScale = name;
       drawFinder();
@@ -1785,10 +1857,10 @@ function drawFinder(){
   });
   finderEl.append(list);
 
-  const l3 = document.createElement("div");
-  l3.className = "findlbl";
-  l3.textContent = "Bordunan taso";
-  finderEl.append(l3);
+  const l4 = document.createElement("div");
+  l4.className = "findlbl";
+  l4.textContent = "Bordunan taso";
+  finderEl.append(l4);
   finderEl.append(volRow("", () => droneVol, v => { droneVol = v; applyDroneVol(); }));
 
   const row = document.createElement("div");
@@ -1836,7 +1908,7 @@ function drawFinder(){
 
   const hint = document.createElement("div");
   hint.id = "findhint";
-  hint.textContent = "Sointu kertoo juurisävelen ja duuri/molli-laadun, ei moodia: doorinen, fryyginen ja molli soivat samana sointuna. Moodin erottaa asteikosta, jossa ero kuuluu kuudennessa ja seitsemännessä sävelessä. Käytä ei siirrä jo soitettuja nuotteja.";
+  hint.textContent = "Testaa ♭3 ja 3 ensin: ne ratkaisevat molli vai duuri. Sitten 6 ja 7, jotka erottavat moodit toisistaan. Biisissä voi olla sävellajin ulkopuolisia väliääniä, joten yksittäinen \"ei sovi\" voi johtaa harhaan.";
   finderEl.append(hint);
 }
 

@@ -135,12 +135,12 @@
   #tabs button span{font-size:9px;opacity:.5;}
   #tabs button.on{background:#0B0E12;color:var(--tonic);}
   #tabs button.on span{opacity:.7;}
-  #mixbtn,#savebtn,#lanesbtn{
-    flex:0 0 40px;border:none;border-radius:0;background:transparent;
-    color:var(--text);font-size:10px;letter-spacing:.05em;
+  #mixbtn,#savebtn,#lanesbtn,#findbtn{
+    flex:0 0 37px;border:none;border-radius:0;background:transparent;
+    color:var(--text);font-size:9px;letter-spacing:.02em;
     border-left:1px solid var(--line);
   }
-  #mixbtn.on,#savebtn.on,#lanesbtn.on{background:#0B0E12;color:var(--tonic);}
+  #mixbtn.on,#savebtn.on,#lanesbtn.on,#findbtn.on{background:#0B0E12;color:var(--tonic);}
 
   #strip{
     flex:0 0 auto;display:none;flex-direction:column;
@@ -260,6 +260,30 @@
   .saverow .drop{border-color:var(--rec);color:var(--rec);}
   #saveempty{font-size:11px;opacity:.5;line-height:1.5;padding:6px 2px;}
 
+  /* ---- sävellajin etsin ---- */
+  #finder{
+    flex:1 1 auto;min-height:0;display:none;
+    flex-direction:column;gap:7px;padding:8px 10px;
+  }
+  #finder.show{display:flex;}
+  .findlbl{font-size:9px;letter-spacing:.09em;text-transform:uppercase;opacity:.55;}
+  #roots{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;}
+  #roots button{padding:9px 0;font-size:13px;}
+  #roots button.on{border-color:var(--tonic);color:var(--tonic);background:#0F1A1C;}
+  #scalelist{
+    flex:1 1 auto;min-height:0;overflow-y:auto;
+    display:grid;grid-template-columns:repeat(2,1fr);gap:4px;
+    align-content:start;scrollbar-width:none;
+  }
+  #scalelist::-webkit-scrollbar{display:none;}
+  #scalelist button{padding:8px 4px;font-size:11px;text-align:left;overflow:hidden;}
+  #scalelist button.on{border-color:var(--tonic);color:var(--tonic);background:#0F1A1C;}
+  #findrow{display:flex;gap:5px;}
+  #findrow button{flex:1 1 0;padding:9px 2px;font-size:11px;}
+  #drone.on{border-color:var(--key-on);color:var(--key-on);}
+  #apply{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
+  #findhint{font-size:9px;line-height:1.45;opacity:.45;}
+
   /* ---- raitojen yhteisnäkymä ----
      Kaikki neljä raitaa samalla aika-akselilla: nuotin leveys on suoraan
      verrannollinen kestoon ja rivit alkavat samasta kohdasta, joten
@@ -370,6 +394,7 @@
 
 <div id="trackrow">
   <div id="tabs"></div>
+  <button id="findbtn"  type="button">Etsin</button>
   <button id="lanesbtn" type="button">Rivit</button>
   <button id="mixbtn"   type="button">Ääni</button>
   <button id="savebtn"  type="button">Otos</button>
@@ -411,6 +436,7 @@
 <div id="mixer"></div>
 <div id="savepanel"></div>
 <div id="lanes"></div>
+<div id="finder"></div>
 <div id="board"></div>
 
 <div id="recglow" aria-hidden="true"></div>
@@ -1033,6 +1059,8 @@ const saveBtn  = document.getElementById("savebtn");
 const savePanel= document.getElementById("savepanel");
 const lanesBtn = document.getElementById("lanesbtn");
 const lanesEl  = document.getElementById("lanes");
+const findBtn  = document.getElementById("findbtn");
+const finderEl = document.getElementById("finder");
 const boardEl  = document.getElementById("board");
 const kickBtn  = document.getElementById("kick");
 const bpmNow   = document.getElementById("bpmnow");
@@ -1622,6 +1650,178 @@ function drawSaves(){
   savePanel.append(list);
 }
 
+/* ---------- sävellajin etsin ----------
+   Kaksivaiheinen, koska korvalla ei mene toisin: kolmisointu paljastaa
+   juurisävelen ja duuri/molli-laadun, mutta doorinen, fryyginen ja molli
+   antavat kaikki saman soinnun. Moodin erottaa vasta asteikko soitettuna.
+   Borduna soi taustalla biisin kanssa: oikean juurisävelen tunnistaa siitä,
+   milloin huojunta ja riitely katoavat.                                    */
+
+const FIND_TONE = PRESETS[7].tone;      // Urut: tasainen ja pitkä, helppo verrata
+let findRoot  = 0;
+let findScale = "Duuri";
+let droneNodes = null;
+
+const findBase = () => 48 + findRoot;   // C3-tasolta ylöspäin
+
+function findChord(){
+  wakeAudio();
+  const steps = SCALES[findScale];
+  const t = ac.currentTime;
+  // Asteet 1, 3 ja 5 — sointu seuraa siis valittua sävellajia itsestään.
+  for (const k of [0, 2, 4]){
+    if (k >= steps.length) continue;
+    voice(findBase() + 12 + steps[k], t, 1.6, FIND_TONE, master);
+  }
+}
+
+function findRun(){
+  wakeAudio();
+  const steps = SCALES[findScale];
+  const t = ac.currentTime + 0.05;
+  const gap = 0.26;
+  steps.forEach((s, i) => voice(findBase() + 12 + s, t + i * gap, gap * 0.95, FIND_TONE, master));
+  voice(findBase() + 24, t + steps.length * gap, 0.9, FIND_TONE, master);
+}
+
+function startDrone(){
+  wakeAudio();
+  stopDrone();
+  const t = ac.currentTime;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.16, t + 0.25);
+  g.connect(master);
+  const oscs = [0, 7, 12, 19].map(iv => {
+    const o = ac.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(midiToFreq(findBase() + iv), t);
+    const og = ac.createGain();
+    og.gain.value = iv === 0 ? 0.5 : 0.22;
+    o.connect(og).connect(g);
+    o.start(t);
+    return o;
+  });
+  droneNodes = { g: g, oscs: oscs };
+}
+
+function stopDrone(){
+  if (!droneNodes || !ac) return;
+  const t = ac.currentTime;
+  const d = droneNodes;
+  droneNodes = null;
+  try{
+    d.g.gain.cancelScheduledValues(t);
+    d.g.gain.setValueAtTime(d.g.gain.value, t);
+    d.g.gain.linearRampToValueAtTime(0.0001, t + 0.2);
+    for (const o of d.oscs) o.stop(t + 0.25);
+  }catch(e){}
+  const b = document.getElementById("drone");
+  if (b) b.classList.remove("on");
+}
+
+function drawFinder(){
+  finderEl.textContent = "";
+
+  const l1 = document.createElement("div");
+  l1.className = "findlbl";
+  l1.textContent = "1. Juurisävel";
+  finderEl.append(l1);
+
+  const roots = document.createElement("div");
+  roots.id = "roots";
+  NOTE_NAMES.forEach((n, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = n;
+    if (i === findRoot) b.className = "on";
+    b.addEventListener("click", () => {
+      const wasDrone = !!droneNodes;
+      findRoot = i;
+      drawFinder();
+      // Bordunan ollessa päällä vaihto siirtää sen; muuten kuullaan sointu.
+      if (wasDrone){
+        startDrone();
+        const db = document.getElementById("drone");
+        if (db) db.classList.add("on");
+      } else {
+        findChord();
+      }
+    });
+    roots.append(b);
+  });
+  finderEl.append(roots);
+
+  const l2 = document.createElement("div");
+  l2.className = "findlbl";
+  l2.textContent = "2. Sävellaji";
+  finderEl.append(l2);
+
+  const list = document.createElement("div");
+  list.id = "scalelist";
+  Object.keys(SCALES).forEach(name => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = name;
+    if (name === findScale) b.className = "on";
+    b.addEventListener("click", () => {
+      findScale = name;
+      drawFinder();
+      findRun();
+    });
+    list.append(b);
+  });
+  finderEl.append(list);
+
+  const row = document.createElement("div");
+  row.id = "findrow";
+
+  const chord = document.createElement("button");
+  chord.type = "button";
+  chord.textContent = "Sointu";
+  chord.addEventListener("click", () => { findChord(); chord.blur(); });
+
+  const run = document.createElement("button");
+  run.type = "button";
+  run.textContent = "Asteikko";
+  run.addEventListener("click", () => { findRun(); run.blur(); });
+
+  const dr = document.createElement("button");
+  dr.type = "button";
+  dr.id = "drone";
+  dr.textContent = "Borduna";
+  if (droneNodes) dr.classList.add("on");
+  dr.addEventListener("click", () => {
+    if (droneNodes) stopDrone();
+    else { startDrone(); dr.classList.add("on"); }
+    dr.blur();
+  });
+
+  const use = document.createElement("button");
+  use.type = "button";
+  use.id = "apply";
+  use.textContent = "Käytä";
+  use.addEventListener("click", () => {
+    snapshot();
+    state.root  = findRoot;
+    state.scale = findScale;
+    rootSel.value  = state.root;
+    scaleSel.value = state.scale;
+    stopDrone();
+    buildBoard();
+    drawSeq();
+    setPanel(null);
+  });
+
+  row.append(chord, run, dr, use);
+  finderEl.append(row);
+
+  const hint = document.createElement("div");
+  hint.id = "findhint";
+  hint.textContent = "Sointu kertoo juurisävelen ja duuri/molli-laadun, ei moodia: doorinen, fryyginen ja molli soivat samana sointuna. Moodin erottaa asteikosta, jossa ero kuuluu kuudennessa ja seitsemännessä sävelessä. Käytä ei siirrä jo soitettuja nuotteja.";
+  finderEl.append(hint);
+}
+
 /* ---------- raitojen yhteisnäkymä ---------- */
 
 const LANE_PX  = 18;                      // pikseliä perusmittaa (1) kohden
@@ -1819,22 +2019,32 @@ function setPanel(name){
   mixing = name === "mix";
   const showSaves = name === "saves";
   const showLanes = name === "lanes";
+  const showFind  = name === "find";
   mixBtn.classList.toggle("on", mixing);
   saveBtn.classList.toggle("on", showSaves);
   lanesBtn.classList.toggle("on", showLanes);
+  findBtn.classList.toggle("on", showFind);
   mixerEl.classList.toggle("show", mixing);
   savePanel.classList.toggle("show", showSaves);
   lanesEl.classList.toggle("show", showLanes);
-  boardEl.classList.toggle("hide", mixing || showSaves || showLanes);
+  finderEl.classList.toggle("show", showFind);
+  boardEl.classList.toggle("hide", mixing || showSaves || showLanes || showFind);
   allKeysUp();
+  if (!showFind) stopDrone();          // borduna ei jää soimaan taustalle
   if (mixing){ wakeAudio(); buildMixer(); }
   if (showSaves) drawSaves();
   if (showLanes) drawLanes();
+  if (showFind){ wakeAudio(); findRoot = state.root; findScale = state.scale; drawFinder(); }
 }
 
 function setMixing(on){ setPanel(on ? "mix" : null); }
 
 mixBtn.addEventListener("click",  () => { setPanel(mixing ? null : "mix"); mixBtn.blur(); });
+findBtn.addEventListener("click", () => {
+  setPanel(finderEl.classList.contains("show") ? null : "find");
+  findBtn.blur();
+});
+
 lanesBtn.addEventListener("click", () => {
   setPanel(lanesEl.classList.contains("show") ? null : "lanes");
   lanesBtn.blur();
@@ -1881,7 +2091,7 @@ kickBtn.addEventListener("click", () => {
 
 // Taustalle siirtyvä appi ei jatka jyskyttämistä.
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden){ metroStop(); stopPlay(); }
+  if (document.hidden){ metroStop(); stopPlay(); stopDrone(); }
   else if (kickMode !== "off") metroStart();
 });
 
@@ -2226,7 +2436,7 @@ window.addEventListener("keydown", e => {
     return;
   }
 
-  if (e.code === "Escape")     { e.preventDefault(); if (mixing || savePanel.classList.contains("show") || lanesEl.classList.contains("show")) setPanel(null); else { clearSel(); drawSeq(); } return; }
+  if (e.code === "Escape")     { e.preventDefault(); if (mixing || savePanel.classList.contains("show") || lanesEl.classList.contains("show") || finderEl.classList.contains("show")) setPanel(null); else { clearSel(); drawSeq(); } return; }
   if (e.code === "ArrowUp")    { e.preventDefault(); shiftOctave(+1); return; }
   if (e.code === "ArrowDown")  { e.preventDefault(); shiftOctave(-1); return; }
   if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); clearSel(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }

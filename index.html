@@ -283,6 +283,8 @@
   #drone.on{border-color:var(--key-on);color:var(--key-on);}
   #apply{border-color:var(--tonic);color:var(--tonic);font-weight:600;}
   #findhint{font-size:9px;line-height:1.45;opacity:.45;}
+  #finder .mixrow{padding-left:0;}
+  #finder .mixrow b{flex:0 0 46px;font-size:11px;}
 
   /* ---- raitojen yhteisnäkymä ----
      Kaikki neljä raitaa samalla aika-akselilla: nuotin leveys on suoraan
@@ -603,7 +605,7 @@ function saveState(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
       v:6, lanes:lanes, octaves:octaves, vols:vols, kickVol:kickVol, presets:presets,
-      muted:muted, looping:looping,
+      muted:muted, looping:looping, droneVol:droneVol,
       active:active, playAll:playAll, root:state.root, scale:state.scale,
       bpm:bpm, kick:kickMode
     }));
@@ -666,6 +668,7 @@ function loadState(){
       for (let t = 0; t < TRACKS.length; t++) muted[t] = d.muted[t] === true;
     }
     if (typeof d.looping === "boolean") looping = d.looping;
+    if (okVol(d.droneVol)) droneVol = d.droneVol;
 
     if (Number.isInteger(d.active) && d.active >= 0 && d.active < TRACKS.length) active = d.active;
     if (typeof d.playAll === "boolean") playAll = d.playAll;
@@ -1658,6 +1661,8 @@ function drawSaves(){
    milloin huojunta ja riitely katoavat.                                    */
 
 const FIND_TONE = PRESETS[7].tone;      // Urut: tasainen ja pitkä, helppo verrata
+const DRONE_BASE = 0.22;        // bordunan perustaso; kerroin on säädettävissä
+let droneVol  = 1.4;
 let findRoot  = 0;
 let findScale = "Duuri";
 let droneNodes = null;
@@ -1690,7 +1695,7 @@ function startDrone(){
   const t = ac.currentTime;
   const g = ac.createGain();
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.16, t + 0.25);
+  g.gain.linearRampToValueAtTime(DRONE_BASE * droneVol, t + 0.25);
   g.connect(master);
   const oscs = [0, 7, 12, 19].map(iv => {
     const o = ac.createOscillator();
@@ -1703,6 +1708,13 @@ function startDrone(){
     return o;
   });
   droneNodes = { g: g, oscs: oscs };
+}
+
+// Säätö kuuluu heti, myös bordunan soidessa — muuten vertailu katkeaisi
+// joka säädöllä.
+function applyDroneVol(){
+  if (!droneNodes || !ac) return;
+  droneNodes.g.gain.setTargetAtTime(DRONE_BASE * droneVol, ac.currentTime, 0.02);
 }
 
 function stopDrone(){
@@ -1772,6 +1784,12 @@ function drawFinder(){
     list.append(b);
   });
   finderEl.append(list);
+
+  const l3 = document.createElement("div");
+  l3.className = "findlbl";
+  l3.textContent = "Bordunan taso";
+  finderEl.append(l3);
+  finderEl.append(volRow("", () => droneVol, v => { droneVol = v; applyDroneVol(); }));
 
   const row = document.createElement("div");
   row.id = "findrow";

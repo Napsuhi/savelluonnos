@@ -111,9 +111,11 @@
   }
   #kick.on{color:var(--key-on);}
   #bpmnow{
-    flex:0 0 auto;width:34px;text-align:center;
-    align-self:center;font-size:12px;color:var(--key);
+    flex:0 0 auto;width:40px;text-align:center;
+    font-size:12px;color:var(--key);
+    border-bottom:1px dotted #3A4A5E;   /* vihje: tähän voi napauttaa tempon */
   }
+  #bpmnow.tapping{color:var(--key-on);border-bottom-color:var(--key-on);}
 
   #trackrow{
     flex:0 0 auto;
@@ -402,7 +404,7 @@
   <div id="tempobox">
     <button id="kick" type="button">Kick</button>
     <button id="bpmdown" type="button" aria-label="Hitaammaksi">&#8722;</button>
-    <span id="bpmnow">120</span>
+    <button id="bpmnow" type="button" aria-label="Napauta tempo">120</button>
     <button id="bpmup" type="button" aria-label="Nopeammaksi">+</button>
   </div>
 </div>
@@ -2155,19 +2157,67 @@ function drawTempo(){
   document.getElementById("bpmup").disabled   = bpm >= BPMS[BPMS.length - 1];
 }
 
+function setBpm(v){
+  if (v === bpm) return;
+  bpm = v;
+  drawTempo();
+  saveState();
+  if (isPlaying) startPlay(fromIdx);            // uusi tempo kuuluu heti
+  else if (kickMode !== "off") metroStart();
+}
+
 function changeBpm(dir){
   const i = BPMS.indexOf(bpm);
   const j = Math.max(0, Math.min(BPMS.length - 1, (i < 0 ? 4 : i) + dir));
-  if (BPMS[j] === bpm) return;
-  bpm = BPMS[j];
+  setBpm(BPMS[j]);
+}
+
+/* ---------- tempon napautus ----------
+   Mitataan napautusten väliä ja näytetään arvio elävänä. Kun napautus
+   loppuu, arvo napsahtaa lähimpään sallittuun. Jos tulos jää alueen
+   ulkopuolelle, se kerrotaan tai jaetaan kahdella: puolinopeudella tai
+   kahdeksasosina napauttaminen on yleistä eikä se ole virhe.             */
+
+const TAP_GAP    = 2000;   // ms — pidempi tauko aloittaa mittauksen alusta
+const TAP_SETTLE = 1600;   // ms — tämän jälkeen arvo lukitaan
+
+let tapTimes = [], tapTimer = null, tapRaw = null;
+
+function tapTempo(){
+  const now = performance.now();
+  if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > TAP_GAP) tapTimes = [];
+  tapTimes.push(now);
+  if (tapTimes.length > 8) tapTimes.shift();
+
+  if (tapTimes.length >= 2){
+    const span = tapTimes[tapTimes.length - 1] - tapTimes[0];
+    let v = 60000 / (span / (tapTimes.length - 1));
+    while (v < BPMS[0] - 5) v *= 2;
+    while (v > BPMS[BPMS.length - 1] + 5) v /= 2;
+    tapRaw = v;
+    bpmNow.textContent = Math.round(v);
+  }
+
+  bpmNow.classList.add("tapping");
+  clearTimeout(tapTimer);
+  tapTimer = setTimeout(finishTap, TAP_SETTLE);
+}
+
+function finishTap(){
+  bpmNow.classList.remove("tapping");
+  tapTimes = [];
+  if (tapRaw === null){ drawTempo(); return; }
+  let best = BPMS[0];
+  for (const b of BPMS) if (Math.abs(b - tapRaw) < Math.abs(best - tapRaw)) best = b;
+  tapRaw = null;
+  setBpm(best);
   drawTempo();
-  saveState();
-  if (isPlaying) startPlay(fromIdx);
-  else if (kickMode !== "off") metroStart();
 }
 
 document.getElementById("bpmdown").addEventListener("click", e => { changeBpm(-1); e.target.blur(); });
 document.getElementById("bpmup").addEventListener("click",   e => { changeBpm(+1); e.target.blur(); });
+
+bpmNow.addEventListener("click", () => { tapTempo(); bpmNow.blur(); });
 
 kickBtn.addEventListener("click", () => {
   const i = KICK_MODES.indexOf(kickMode);
@@ -2536,6 +2586,7 @@ window.addEventListener("keydown", e => {
   if (e.code === "Minus" || e.code === "NumpadSubtract"){ e.preventDefault(); changeLen(-1); return; }
   if (e.code === "Equal" || e.code === "NumpadAdd")     { e.preventDefault(); changeLen(+1); return; }
   if (e.code === "KeyL")       { e.preventDefault(); loopBtn.click(); return; }
+  if (e.code === "KeyT")       { e.preventDefault(); tapTempo(); return; }
   if (e.code === "Comma")      { e.preventDefault(); changeBpm(-1); return; }
   if (e.code === "Period")     { e.preventDefault(); changeBpm(+1); return; }
 

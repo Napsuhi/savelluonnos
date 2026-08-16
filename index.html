@@ -139,11 +139,16 @@
   #tabs button.on{background:#0B0E12;color:var(--tonic);}
   #tabs button.on span{opacity:.7;}
   #mixbtn,#savebtn,#lanesbtn,#findbtn{
-    flex:0 0 37px;border:none;border-radius:0;background:transparent;
+    flex:0 0 35px;border:none;border-radius:0;background:transparent;
     color:var(--text);font-size:9px;letter-spacing:.02em;
     border-left:1px solid var(--line);
   }
-  #mixbtn.on,#savebtn.on,#lanesbtn.on,#findbtn.on{background:#0B0E12;color:var(--tonic);}
+  #mixbtn.on,#savebtn.on,#lanesbtn.on,#findbtn.on,#infobtn.on{background:#0B0E12;color:var(--tonic);}
+  #infobtn{
+    flex:0 0 26px;border:none;border-radius:0;background:transparent;
+    color:var(--text);font-size:13px;font-weight:700;
+    border-left:1px solid var(--line);
+  }
 
   #strip{
     flex:0 0 auto;display:none;flex-direction:column;
@@ -273,6 +278,24 @@
   .saverow button{flex:0 0 auto;padding:6px 6px;font-size:10px;}
   .saverow .drop{border-color:var(--rec);color:var(--rec);}
   #saveempty{font-size:11px;opacity:.5;line-height:1.5;padding:6px 2px;}
+
+  /* ---- teorialista ---- */
+  #info{
+    flex:1 1 auto;min-height:0;display:none;
+    flex-direction:column;gap:2px;
+    padding:10px 12px;overflow-y:auto;
+    scrollbar-width:none;
+  }
+  #info.show{display:flex;}
+  #info::-webkit-scrollbar{display:none;}
+  #info h3{
+    margin:12px 0 4px;font-size:10px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--tonic);
+  }
+  #info h3:first-child{margin-top:0;}
+  #info p{margin:0 0 4px;font-size:11px;line-height:1.5;color:var(--text);}
+  #info p b{color:var(--key);font-weight:600;}
+  #info p.plain{opacity:.75;}
 
   /* ---- sävellajin etsin ---- */
   #finder{
@@ -424,6 +447,7 @@
 
 <div id="trackrow">
   <div id="tabs"></div>
+  <button id="infobtn"  type="button" aria-label="Teoriamuistilista">i</button>
   <button id="findbtn"  type="button">Etsin</button>
   <button id="lanesbtn" type="button">Rivit</button>
   <button id="mixbtn"   type="button">Ääni</button>
@@ -473,6 +497,7 @@
 <div id="savepanel"></div>
 <div id="lanes"></div>
 <div id="finder"></div>
+<div id="info"></div>
 <div id="board"></div>
 
 <div id="recglow" aria-hidden="true"></div>
@@ -516,7 +541,7 @@ const LEN_LABEL = { 0.25:"¼", 0.5:"½", 1:"1", 1.5:"1½", 2:"2", 3:"3", 4:"4", 
 
 const UNITS_PER_BAR = 8;          // 4/4-tahti kahdeksasosina
 
-const BPMS  = [80,90,100,110,120,130,140,150,160,170,180];
+const BPMS  = [80,90,100,110,120,130,140,150,160,170,180,190,200];
 const BEATS_PER_BAR = 4;
 const KICK_MODES = ["off","bar","beat"];
 const KICK_LABEL = { off:"Kick", bar:"Tahti", beat:"Isku" };
@@ -1108,6 +1133,8 @@ const lanesBtn = document.getElementById("lanesbtn");
 const lanesEl  = document.getElementById("lanes");
 const findBtn  = document.getElementById("findbtn");
 const finderEl = document.getElementById("finder");
+const infoBtn  = document.getElementById("infobtn");
+const infoEl   = document.getElementById("info");
 const boardEl  = document.getElementById("board");
 const kickBtn  = document.getElementById("kick");
 const bpmNow   = document.getElementById("bpmnow");
@@ -1960,6 +1987,105 @@ function scaleFits(name){
   return true;
 }
 
+/* ---------- teorialista ----------
+   Muistilista, ei käyttöohje: vain sellaista mitä katsotaan kesken työn.
+   Merkinnät vastaavat seulan nappeja (♭3, ♮6), jotta ohjeesta voi siirtyä
+   suoraan napille ilman käännöstä. Suomenkielinen nimi on suluissa
+   ensimmäisellä esiintymällä.
+
+   Sisältö renderöidään textContentilla, ei innerHTML:llä. */
+
+const INFO_SECTIONS = [
+  ["Moodin tunnistus", [
+    "Borduna päälle biisin taustalle. Testaa yksi sävel kerrallaan: sopiiko vai riiteleekö.",
+    "♭3 vai ♮3 (pieni vai suuri terssi)|Molli- vai duurisuku. Puolittaa listan — testaa aina ensin.",
+    "♮6 vai ♭6 (seksti)|Mollissa: ♮6 tarkoittaa doorista, ♭6 kaikkia muita.",
+    "♮7 vai ♭7 (septimi)|Mollissa: ♮7 on harmoninen molli. Duurissa: ♭7 on miksolyydinen.",
+    "♭2 (pieni sekunti)|Jos sopii, kyseessä on fryyginen.",
+    "♯4 (ylinouseva kvartti)|Duurissa: jos sopii, kyseessä on lyydinen.",
+    "Jos lista tyhjenee kokonaan, jokin merkintä on väärä. Biiseissä on lainattuja säveliä."
+  ]],
+
+  ["Moodien luonteet", [
+    "Duuri|1 2 3 4 5 6 7. Kirkas ja vakaa.",
+    "Luonnollinen molli|♭3 ♭6 ♭7. Tumma ja helposti luettava.",
+    "Harmoninen molli|♭6 ja ♮7 vierekkäin. Dramaattinen, kireä, iso hyppy niiden välissä.",
+    "Melodinen molli|♭3 mutta ♮6 ja ♮7. Kireä ja hienostunut, elokuvallinen.",
+    "Doorinen|Molli jossa ♮6. Toiveikas, ei painu synkäksi. Funkin ja rockin molli.",
+    "Fryyginen|♭2 tekee siitä uhkaavan ja espanjalaisen.",
+    "Lyydinen|Duuri jossa ♯4. Leijuva ja avara.",
+    "Miksolyydinen|Duuri jossa ♭7. Pehmeä, ei vedä kotiin.",
+    "Lokrinen|♭2 ja ♭5. Epävakaa, ei asetu paikoilleen.",
+    "Duuripentatoninen|1 2 3 5 6. Ei puolisävelaskelia, ei riitele minkään kanssa.",
+    "Mollipentatoninen|1 ♭3 4 5 ♭7. Riffit ja nopeat kuviot.",
+    "Blues|Mollipentatoninen + ♭5. Se ♭5 on ohikulkusävel, ei lepopaikka."
+  ]],
+
+  ["Sävelasteiden roolit", [
+    "1|Koti. Fraasi päättyy tähän kun halutaan valmis.",
+    "5|Toiseksi vakain. Hyvä fraasin puoliväliin.",
+    "3|Ratkaisee tunnelman: ♮3 duuri, ♭3 molli.",
+    "7|♮7 on johtosävel ja vetää voimakkaasti 1:een. ♭7 ei vedä, se rentouttaa.",
+    "4|Levoton, hakeutuu 3:een.",
+    "2 ja 6|Väriä ja liikettä, harvoin päätepisteitä."
+  ]],
+
+  ["Melodian rakennuspalikat", [
+    "Sekvenssi|Sama kuvio toistettuna asteen tai kaksi ylempää. Valitse fraasi ja käytä ▲.",
+    "Kysymys ja vastaus|Kaksi fraasia: ensimmäinen päättyy 5:een, toinen 1:een.",
+    "Huipennus|Yksi korkein sävel koko fraasissa, ja siinä käydään kerran.",
+    "Asteikkokulku vai hyppy|Peräkkäiset asteet laulavat, hypyt yllättävät. Hypyn jälkeen palaa vastakkaiseen suuntaan.",
+    "Tauko|Fraasi tarvitsee hengityskohdan. Tauko ennen huipennusta korostaa sitä.",
+    "Käännä ja peilaa|Kun kuvio junnaa: valitse fraasi ja kokeile molempia."
+  ]],
+
+  ["Sointukulut asteina", [
+    "Molli i–♭VI–♭VII|Nouseva, ei purkaudu. Yleisin synthwave-kulku.",
+    "Molli i–♭VII–♭VI–V|Laskeva, klassinen jännite.",
+    "Molli i–iv–v|Perinteinen ja raskas.",
+    "Duuri I–V–vi–IV|Popin peruskulku.",
+    "Fryyginen i–♭II|Kaksi sointua, uhkaava. ♭II on se koukku.",
+    "Pohjaraidalle riittää soinnun pohjasävel pitkänä nuottina — sointu itse tehdään FL:ssä."
+  ]],
+
+  ["Pomomusiikki", [
+    "Sama juurisävel läpi soundtrackin, moodi vaihtuu pomon mukaan. Silloin kokonaisuus pysyy yhtenäisenä mutta jokainen pomo saa oman luonteensa.",
+    "Luonnollinen molli|Tavallinen vastustaja.",
+    "Harmoninen molli|Dramaattinen, päävastustaja.",
+    "Fryyginen|Uhkaava ja ahdistava.",
+    "Lokrinen|Jokin on selvästi väärin.",
+    "Lyydinen tai duuri|Voittovaihe tai käänne.",
+    "Nopeat osuudet|Mollipentatoninen: viisi säveltä pysyy luettavana kun kuvio menee ohi kahdesti sekunnissa.",
+    "Tempo|150–180. Nopeampi luonnostellaan puolitempossa ja tuplataan FL:ssä."
+  ]]
+];
+
+let infoBuilt = false;
+
+function drawInfo(){
+  if (infoBuilt) return;
+  infoBuilt = true;
+  infoEl.textContent = "";
+  for (const [title, lines] of INFO_SECTIONS){
+    const h = document.createElement("h3");
+    h.textContent = title;
+    infoEl.append(h);
+    for (const line of lines){
+      const p = document.createElement("p");
+      const k = line.indexOf("|");
+      if (k < 0){
+        p.className = "plain";
+        p.textContent = line;
+      } else {
+        const b = document.createElement("b");
+        b.textContent = line.slice(0, k) + " — ";
+        p.append(b, document.createTextNode(line.slice(k + 1)));
+      }
+      infoEl.append(p);
+    }
+  }
+}
+
 function drawFinder(){
   finderEl.textContent = "";
 
@@ -2342,26 +2468,35 @@ function setPanel(name){
   const showSaves = name === "saves";
   const showLanes = name === "lanes";
   const showFind  = name === "find";
+  const showInfo  = name === "info";
   mixBtn.classList.toggle("on", mixing);
   saveBtn.classList.toggle("on", showSaves);
   lanesBtn.classList.toggle("on", showLanes);
   findBtn.classList.toggle("on", showFind);
+  infoBtn.classList.toggle("on", showInfo);
   mixerEl.classList.toggle("show", mixing);
   savePanel.classList.toggle("show", showSaves);
   lanesEl.classList.toggle("show", showLanes);
   finderEl.classList.toggle("show", showFind);
-  boardEl.classList.toggle("hide", mixing || showSaves || showLanes || showFind);
+  infoEl.classList.toggle("show", showInfo);
+  boardEl.classList.toggle("hide", mixing || showSaves || showLanes || showFind || showInfo);
   allKeysUp();
   if (!showFind) stopDrone();          // borduna ei jää soimaan taustalle
   if (mixing){ wakeAudio(); buildMixer(); }
   if (showSaves) drawSaves();
   if (showLanes) drawLanes();
   if (showFind){ wakeAudio(); findRoot = state.root; findScale = state.scale; drawFinder(); }
+  if (showInfo) drawInfo();
 }
 
 function setMixing(on){ setPanel(on ? "mix" : null); }
 
 mixBtn.addEventListener("click",  () => { setPanel(mixing ? null : "mix"); mixBtn.blur(); });
+infoBtn.addEventListener("click", () => {
+  setPanel(infoEl.classList.contains("show") ? null : "info");
+  infoBtn.blur();
+});
+
 findBtn.addEventListener("click", () => {
   setPanel(finderEl.classList.contains("show") ? null : "find");
   findBtn.blur();
@@ -2817,7 +2952,7 @@ window.addEventListener("keydown", e => {
     return;
   }
 
-  if (e.code === "Escape")     { e.preventDefault(); if (mixing || savePanel.classList.contains("show") || lanesEl.classList.contains("show") || finderEl.classList.contains("show")) setPanel(null); else { clearSel(); drawSeq(); } return; }
+  if (e.code === "Escape")     { e.preventDefault(); if (mixing || savePanel.classList.contains("show") || lanesEl.classList.contains("show") || finderEl.classList.contains("show") || infoEl.classList.contains("show")) setPanel(null); else { clearSel(); drawSeq(); } return; }
   if (e.code === "ArrowUp")    { e.preventDefault(); shiftOctave(+1); return; }
   if (e.code === "ArrowDown")  { e.preventDefault(); shiftOctave(-1); return; }
   if (e.code === "ArrowLeft")  { e.preventDefault(); stopPlay(); clearSel(); cursors[active]--; drawSeq(); auditionAtCursor(); return; }

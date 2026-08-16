@@ -63,6 +63,9 @@
     white-space:nowrap;min-width:0;
   }
   #scale{max-width:150px;text-overflow:ellipsis;}
+  #bar label{gap:0;}
+  #keyfilter{flex:0 0 auto;padding:5px 6px;font-size:10px;letter-spacing:.02em;}
+  #keyfilter.on{border-color:var(--tonic);color:var(--tonic);}
   #bar select{padding-right:20px;}
   #bar label::after{
     content:"";position:absolute;right:7px;top:50%;
@@ -426,8 +429,9 @@
 <body>
 
 <div id="bar">
-  <label>Sävel <select id="root"></select></label>
-  <label>Sävellaji <select id="scale"></select></label>
+  <label><select id="root" aria-label="Sävel"></select></label>
+  <label><select id="scale" aria-label="Sävellaji"></select></label>
+  <button id="keyfilter" type="button" title="Näytä vain sävellajit joihin soitetut nuotit sopivat">Sopivat</button>
   <button id="rec" type="button">Nauhoita</button>
 </div>
 
@@ -546,6 +550,7 @@ const BEATS_PER_BAR = 4;
 const KICK_MODES = ["off","bar","beat"];
 const KICK_LABEL = { off:"Kick", bar:"Tahti", beat:"Isku" };
 
+let keyFilter = true;      // näytä vain sävellajit joihin soitetut nuotit sopivat
 let bpm      = 120;
 let kickMode = "off";
 
@@ -664,7 +669,7 @@ function saveState(){
   try{
     localStorage.setItem(STORE_KEY, JSON.stringify({
       v:6, lanes:lanes, octaves:octaves, vols:vols, kickVol:kickVol, presets:presets,
-      muted:muted, looping:looping, droneVol:droneVol,
+      muted:muted, looping:looping, droneVol:droneVol, keyFilter:keyFilter,
       active:active, playAll:playAll, root:state.root, scale:state.scale,
       bpm:bpm, kick:kickMode
     }));
@@ -733,6 +738,7 @@ function loadState(){
     }
     if (typeof d.looping === "boolean") looping = d.looping;
     if (okVol(d.droneVol)) droneVol = d.droneVol;
+    if (typeof d.keyFilter === "boolean") keyFilter = d.keyFilter;
 
     if (Number.isInteger(d.active) && d.active >= 0 && d.active < TRACKS.length) active = d.active;
     if (typeof d.playAll === "boolean") playAll = d.playAll;
@@ -1135,6 +1141,7 @@ const findBtn  = document.getElementById("findbtn");
 const finderEl = document.getElementById("finder");
 const infoBtn  = document.getElementById("infobtn");
 const infoEl   = document.getElementById("info");
+const keyFilter1 = document.getElementById("keyfilter");
 const boardEl  = document.getElementById("board");
 const kickBtn  = document.getElementById("kick");
 const bpmNow   = document.getElementById("bpmnow");
@@ -1526,6 +1533,7 @@ function drawSeq(){
   nextBtn.disabled = cur >= lane.length;
 
   drawTracks();
+  refreshKeyOptions();
   if (lanesEl.classList.contains("show")) drawLanes();
   saveState();
 }
@@ -2062,6 +2070,55 @@ const INFO_SECTIONS = [
 
 let infoBuilt = false;
 
+/* ---------- sävellajin suodatus ----------
+   Kerätään kaikki raidoilla käytetyt sävelluokat ja näytetään vain ne
+   juurisävelet ja sävellajit, joihin ne kaikki mahtuvat. Kun melodia jumittaa
+   siihen ettei seuraavaa säveltä löydy, syy on yleensä että se ei ole
+   nykyisessä sävellajissa — silloin kosketinta ei ole ruudulla lainkaan.
+   Suodatettu lista kertoo mihin siihenastinen melodia sopii.               */
+
+function usedPcs(){
+  const s = new Set();
+  for (const lane of lanes)
+    for (const it of lane)
+      if (!isRest(it)) s.add(((it.n % 12) + 12) % 12);
+  return s;
+}
+
+function keyFits(root, scaleName, pcs){
+  const st = SCALES[scaleName];
+  for (const pc of pcs) if (st.indexOf(((pc - root) % 12 + 12) % 12) < 0) return false;
+  return true;
+}
+
+function refreshKeyOptions(){
+  const pcs = usedPcs();
+  const on  = keyFilter && pcs.size > 0;
+
+  const roots  = [];
+  const scales = [];
+  for (let r = 0; r < 12; r++)
+    if (!on || Object.keys(SCALES).some(n => keyFits(r, n, pcs))) roots.push(r);
+  for (const n of Object.keys(SCALES))
+    if (!on || keyFits(state.root, n, pcs)) scales.push(n);
+
+  // Nykyinen valinta pysyy listalla aina, ettei valikko voi jäädä tyhjäksi.
+  if (roots.indexOf(state.root) < 0) roots.push(state.root);
+  if (scales.indexOf(state.scale) < 0) scales.push(state.scale);
+  roots.sort((a, b) => a - b);
+
+  rootSel.textContent = "";
+  for (const r of roots) rootSel.add(new Option(NOTE_NAMES[r], r));
+  rootSel.value = state.root;
+
+  scaleSel.textContent = "";
+  for (const n of scales) scaleSel.add(new Option(n, n));
+  scaleSel.value = state.scale;
+
+  keyFilter1.classList.toggle("on", keyFilter);
+  keyFilter1.textContent = keyFilter ? "Sopivat" : "Kaikki";
+}
+
 function drawInfo(){
   if (infoBuilt) return;
   infoBuilt = true;
@@ -2221,6 +2278,7 @@ function drawFinder(){
     rootSel.value  = state.root;
     scaleSel.value = state.scale;
     stopDrone();
+    refreshKeyOptions();
     buildBoard();
     drawSeq();
     setPanel(null);
@@ -2987,18 +3045,37 @@ window.addEventListener("blur", () => { release(); allKeysUp(); });
 const rootSel  = document.getElementById("root");
 const scaleSel = document.getElementById("scale");
 
-NOTE_NAMES.forEach((n, i) => rootSel.add(new Option(n, i)));
-Object.keys(SCALES).forEach(n => scaleSel.add(new Option(n, n)));
 
-rootSel.addEventListener("change",  e => { state.root  = Number(e.target.value); allKeysUp(); buildBoard(); e.target.blur(); });
-scaleSel.addEventListener("change", e => { state.scale = e.target.value;         allKeysUp(); buildBoard(); e.target.blur(); });
+
+// Juurisävelen vaihto voi jättää nykyisen sävellajin suodattimen ulkopuolelle;
+// silloin siirrytään ensimmäiseen sopivaan, ettei tila jää ristiriitaiseksi.
+rootSel.addEventListener("change", e => {
+  state.root = Number(e.target.value);
+  const pcs = usedPcs();
+  if (keyFilter && pcs.size && !keyFits(state.root, state.scale, pcs)){
+    const fit = Object.keys(SCALES).find(n => keyFits(state.root, n, pcs));
+    if (fit) state.scale = fit;
+  }
+  allKeysUp(); refreshKeyOptions(); buildBoard(); drawSeq(); e.target.blur();
+});
+
+scaleSel.addEventListener("change", e => {
+  state.scale = e.target.value;
+  allKeysUp(); refreshKeyOptions(); buildBoard(); drawSeq(); e.target.blur();
+});
+
+keyFilter1.addEventListener("click", () => {
+  keyFilter = !keyFilter;
+  saveState();
+  refreshKeyOptions();
+  keyFilter1.blur();
+});
 
 document.addEventListener("pointerdown", wakeAudio, { once:true });
 
 loadState();
 loadSaves();
-rootSel.value  = state.root;
-scaleSel.value = state.scale;
+refreshKeyOptions();
 modeBtn.textContent = playAll ? "Kaikki" : "Raita";
 modeBtn.classList.toggle("all", playAll);
 drawTempo();

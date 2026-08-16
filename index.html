@@ -18,7 +18,7 @@
     --rec:#E5484D;
     --rest:#5C6675;
     --range:#1D3A38;
-    --cursor:#FF4FD8;
+    --bar:#8A7BFF;
     --ink:#0E1116;
     --text:#8D97A5;
     --mono:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
@@ -183,16 +183,17 @@
   #notes span.note.sel{background:var(--line);color:var(--key-on);}
   #notes span.note.sel i{opacity:.85;}
   #notes span.note.playing em{color:var(--key-on);}
+  /* Tahtiviiva on rakenteen mittatikku, joten sen pitää erottua nuoteista
+     ilman että se sekoittuu kohdistimeen tai valintaan. */
   #notes b.barline{
-    flex:0 0 auto;width:1px;align-self:stretch;
-    margin:2px 3px;
-    background:var(--line);
+    flex:0 0 auto;width:3px;align-self:stretch;
+    margin:0 4px;border-radius:2px;
+    background:var(--bar);
   }
   #notes b.caret{
-    flex:0 0 auto;width:3px;align-self:stretch;
-    margin:2px 0;border-radius:2px;
-    background:var(--cursor);
-    box-shadow:0 0 5px var(--cursor);
+    flex:0 0 auto;width:2px;align-self:stretch;
+    margin:4px 0;border-radius:1px;
+    background:var(--tonic);
   }
 
   .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
@@ -341,9 +342,8 @@
   .lane .nb.rest{background:#1B222C;}
   .lane .nb.cur{box-shadow:0 0 0 2px var(--key-on);}
   .lane .cursorline{
-    position:absolute;top:1px;bottom:1px;width:3px;
-    background:var(--cursor);border-radius:2px;
-    box-shadow:0 0 5px var(--cursor);
+    position:absolute;top:2px;bottom:2px;width:2px;
+    background:var(--tonic);border-radius:1px;
   }
 
   /* ---- nauhoituksen reunavalo ----
@@ -1977,7 +1977,8 @@ function drawLanes(){
     inner.className = "inner";
     inner.style.width = wide + "px";
     inner.style.backgroundImage =
-      "repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px " + BAR_PX + "px)";
+      "repeating-linear-gradient(to right, var(--bar) 0 3px, transparent 3px " + BAR_PX + "px)";
+    inner.style.backgroundPosition = "0 0";
 
     let at = 0;
     lanes[t].forEach((it, i) => {

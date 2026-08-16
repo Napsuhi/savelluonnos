@@ -201,7 +201,7 @@
   .btnrow:last-child{padding-bottom:6px;}
   .btnrow button{padding:6px 5px;font-size:12px;flex:1 1 0;}
   #prev,#next,#shorter,#longer,#down,#up,#chord,#play,#playhere,#loop{flex:0 0 40px;text-align:center;font-size:14px;line-height:1;}
-  #chord{border-color:#5A4E8C;}
+  #chord{border-color:#5A4E8C;font-size:12px;}
   #chord.on{border-color:var(--bar);color:var(--bar);}
   #prev,#next{border-color:#3A4A5E;font-size:12px;}
   #shorter,#longer{font-size:13px;}
@@ -645,7 +645,8 @@ function readItem(it){
   if (it.r === true) return { r:true, d:d };
   if (Number.isInteger(it.n) && it.n >= 0 && it.n <= 127){
     const o = { n:it.n, d:d };
-    if (it.c === true) o.c = true;
+    if (it.c === 1 || it.c === 2 || it.c === 3) o.c = it.c;
+    else if (it.c === true) o.c = 1;   // vanha muoto: nuotti pohjasävelenä
     return o;
   }
   return null;
@@ -920,7 +921,7 @@ function noteOff(fade){
 
 function blip(midi, chord){
   wakeAudio();
-  for (const m of (chord ? chordTones(midi) : [midi])) laneVoice(active, m, ac.currentTime, 0);
+  for (const m of (chord ? chordTones(midi, chord) : [midi])) laneVoice(active, m, ac.currentTime, 0);
 }
 
 /* ---------- toisto ---------- */
@@ -948,7 +949,7 @@ function scheduleLane(t, at0, u0, u1){
     const len = s * it.d;
     marks.push(at);
     if (!isRest(it)){
-      for (const m of (it.c ? chordTones(it.n) : [it.n])) voices.push(laneVoice(t, m, at, len));
+      for (const m of (it.c ? chordTones(it.n, it.c) : [it.n])) voices.push(laneVoice(t, m, at, len));
     }
     if (at + len > end) end = at + len;
   }
@@ -1127,14 +1128,21 @@ function fromLadder(idx){
   return state.root + oct * 12 + steps[k];
 }
 
-// Sointusävelet asteikon sisältä: nuotti + kaksi astetta + neljä astetta.
-// Duuri- tai mollisointu syntyy siis itsestään sen mukaan mille asteelle
-// nuotti osuu — erillistä logiikkaa ei tarvita.
-function chordTones(midi){
+/* Sointusävelet asteikon sisältä. Sointu rakennetaan sen mukaan, mikä rooli
+   melodianuotilla on: pohja, terssi vai kvintti. Ilman tätä valintaa sointu
+   olettaisi nuotin aina pohjasäveleksi — jolloin C-duurin päällä lepäävä E
+   tuottaisi e-mollin. Laatu (duuri, molli, vähennetty) tulee edelleen
+   itsestään siitä, mille asteelle sointu osuu.                              */
+
+const CHORD_MODES = { 1:[0, 2, 4], 2:[-2, 0, 2], 3:[-4, -2, 0] };
+const CHORD_LABEL = { 1:"1", 2:"3", 3:"5" };
+
+function chordTones(midi, mode){
+  const offs = CHORD_MODES[mode] || CHORD_MODES[1];
   const i = toLadder(midi);
-  const out = [midi];
-  for (const s of [2, 4]){
-    const m = fromLadder(i + s);
+  const out = [];
+  for (const s of offs){
+    const m = s === 0 ? midi : fromLadder(i + s);
     if (m >= 0 && m <= 127) out.push(m);
   }
   return out;
@@ -1148,15 +1156,18 @@ function toggleChord(){
   const hi = hasSel() ? selHi() : lo;
   if (lo < 0) return;
 
-  let any = false;
-  for (let i = lo; i <= hi; i++) if (!isRest(lane[i]) && !lane[i].c) any = true;
+  // Kierto: pois -> pohja -> terssi -> kvintti -> pois. Seuraava tila
+  // johdetaan alueen ensimmäisestä nuotista, jolloin koko alue pysyy samassa.
+  let cur = 0;
+  for (let i = lo; i <= hi; i++) if (!isRest(lane[i])){ cur = lane[i].c || 0; break; }
+  const next = cur >= 3 ? 0 : cur + 1;
 
   snapshot();
   let last = null;
   for (let i = lo; i <= hi; i++){
     const it = lane[i];
     if (isRest(it)) continue;
-    if (any) it.c = true; else delete it.c;
+    if (next) it.c = next; else delete it.c;
     last = it;
   }
   stopPlay();
@@ -1371,7 +1382,7 @@ function drawSeq(){
     const nm = document.createElement("em");
     nm.textContent = isRest(it) ? "–" : midiToName(it.n);
     const ln = document.createElement("i");
-    ln.textContent = LEN_LABEL[it.d] || "1";
+    ln.textContent = (LEN_LABEL[it.d] || "1") + (it.c ? " \u25b3" + CHORD_LABEL[it.c] : "");
     s.append(nm, ln);
     notesEl.append(s);
     units += Math.round(it.d * 4);
@@ -1422,7 +1433,10 @@ function drawSeq(){
   const movable = range.some(it => !isRest(it));
   upBtn.disabled = downBtn.disabled = !movable;
   chordBtn.disabled = !movable;
-  chordBtn.classList.toggle("on", movable && range.some(it => !isRest(it) && it.c));
+  let cmode = 0;
+  for (const it of range) if (!isRest(it)){ cmode = it.c || 0; break; }
+  chordBtn.textContent = cmode ? "\u25b3" + CHORD_LABEL[cmode] : "\u25b3";
+  chordBtn.classList.toggle("on", movable && cmode > 0);
 
   prevBtn.disabled = cur === 0;
   nextBtn.disabled = cur >= lane.length;
@@ -2410,15 +2424,26 @@ function tempoMeta(){
 
 // Voimakkuus on vakio: kuuntelusäädöt eivät saa vääristää FL:ään
 // vietävää aineistoa, koska puhelimen kaiutin ei ole miksausreferenssi.
+// Soinnuiksi merkityt nuotit kirjoitetaan kaikkina sävelinään: sama alku,
+// sama kesto. Työ on silloin jo tehty kun luonnos avataan FL:ssä.
 function laneEvents(lane, channel){
   const ev = [];
   let pending = 0;                       // taukojen kertymä seuraavaan nuottiin
   for (const it of lane){
     const ticks = Math.max(1, Math.round(BASE_TICKS * it.d));
     if (isRest(it)){ pending += ticks; continue; }
-    const p = Math.max(0, Math.min(127, it.n));
-    ev.push.apply(ev, vlq(pending)); ev.push(0x90 | channel, p, 100);
-    ev.push.apply(ev, vlq(ticks));   ev.push(0x80 | channel, p, 64);
+
+    const notes = (it.c ? chordTones(it.n, it.c) : [it.n])
+      .map(m => Math.max(0, Math.min(127, m)));
+
+    notes.forEach((p, k) => {
+      ev.push.apply(ev, vlq(k === 0 ? pending : 0));
+      ev.push(0x90 | channel, p, 100);
+    });
+    notes.forEach((p, k) => {
+      ev.push.apply(ev, vlq(k === 0 ? ticks : 0));
+      ev.push(0x80 | channel, p, 64);
+    });
     pending = 0;
   }
   ev.push(0x00, 0xFF, 0x2F, 0x00);

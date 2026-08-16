@@ -179,6 +179,7 @@
   #notes span.note em{font-style:normal;font-size:14px;line-height:1;}
   #notes span.note i{font-style:normal;font-size:9px;line-height:1;opacity:.4;letter-spacing:.04em;}
   #notes span.note.rest em{color:var(--rest);}
+  #notes span.note.chord{box-shadow:inset 0 3px 0 var(--bar);}
   #notes span.note.range{background:var(--range);}
   #notes span.note.sel{background:var(--line);color:var(--key-on);}
   #notes span.note.sel i{opacity:.85;}
@@ -199,7 +200,9 @@
   .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
   .btnrow:last-child{padding-bottom:6px;}
   .btnrow button{padding:6px 5px;font-size:12px;flex:1 1 0;}
-  #prev,#next,#shorter,#longer,#down,#up,#play,#playhere,#loop{flex:0 0 42px;text-align:center;font-size:14px;line-height:1;}
+  #prev,#next,#shorter,#longer,#down,#up,#chord,#play,#playhere,#loop{flex:0 0 40px;text-align:center;font-size:14px;line-height:1;}
+  #chord{border-color:#5A4E8C;}
+  #chord.on{border-color:var(--bar);color:var(--bar);}
   #prev,#next{border-color:#3A4A5E;font-size:12px;}
   #shorter,#longer{font-size:13px;}
   .btnrow.wide button{font-size:11px;padding:6px 2px;}
@@ -340,6 +343,7 @@
     overflow:hidden;
   }
   .lane .nb.rest{background:#1B222C;}
+  .lane .nb.chord{box-shadow:inset 0 3px 0 var(--bar);}
   .lane .nb.cur{box-shadow:0 0 0 2px var(--key-on);}
   .lane .cursorline{
     position:absolute;top:2px;bottom:2px;width:2px;
@@ -434,6 +438,7 @@
     <button id="longer"  type="button" aria-label="Pidennä" disabled>+</button>
     <button id="down"    type="button" aria-label="Aste alas" disabled>&#9660;</button>
     <button id="up"      type="button" aria-label="Aste ylös" disabled>&#9650;</button>
+    <button id="chord"   type="button" aria-label="Sointu päälle/pois" disabled>&#9651;</button>
   </div>
   <!-- rivi 2: rakenne -->
   <div class="btnrow wide">
@@ -638,7 +643,11 @@ function readItem(it){
   if (!it || typeof it !== "object") return null;
   const d = LENS.indexOf(it.d) >= 0 ? it.d : 1;
   if (it.r === true) return { r:true, d:d };
-  if (Number.isInteger(it.n) && it.n >= 0 && it.n <= 127) return { n:it.n, d:d };
+  if (Number.isInteger(it.n) && it.n >= 0 && it.n <= 127){
+    const o = { n:it.n, d:d };
+    if (it.c === true) o.c = true;
+    return o;
+  }
   return null;
 }
 
@@ -909,9 +918,9 @@ function noteOff(fade){
   playingNote = null;
 }
 
-function blip(midi){
+function blip(midi, chord){
   wakeAudio();
-  laneVoice(active, midi, ac.currentTime, 0);
+  for (const m of (chord ? chordTones(midi) : [midi])) laneVoice(active, m, ac.currentTime, 0);
 }
 
 /* ---------- toisto ---------- */
@@ -938,7 +947,9 @@ function scheduleLane(t, at0, u0, u1){
     const at  = at0 + (st - u0) * s;
     const len = s * it.d;
     marks.push(at);
-    if (!isRest(it)) voices.push(laneVoice(t, it.n, at, len));
+    if (!isRest(it)){
+      for (const m of (it.c ? chordTones(it.n) : [it.n])) voices.push(laneVoice(t, m, at, len));
+    }
     if (at + len > end) end = at + len;
   }
   return { end: end, marks: marks };
@@ -1063,6 +1074,7 @@ const upBtn    = document.getElementById("up");
 const prevBtn  = document.getElementById("prev");
 const nextBtn  = document.getElementById("next");
 const downBtn  = document.getElementById("down");
+const chordBtn = document.getElementById("chord");
 const modeBtn  = document.getElementById("mode");
 const shortBtn = document.getElementById("shorter");
 const longBtn  = document.getElementById("longer");
@@ -1113,6 +1125,43 @@ function fromLadder(idx){
   const oct = Math.floor(idx / steps.length);
   const k   = idx - oct * steps.length;
   return state.root + oct * 12 + steps[k];
+}
+
+// Sointusävelet asteikon sisältä: nuotti + kaksi astetta + neljä astetta.
+// Duuri- tai mollisointu syntyy siis itsestään sen mukaan mille asteelle
+// nuotti osuu — erillistä logiikkaa ei tarvita.
+function chordTones(midi){
+  const i = toLadder(midi);
+  const out = [midi];
+  for (const s of [2, 4]){
+    const m = fromLadder(i + s);
+    if (m >= 0 && m <= 127) out.push(m);
+  }
+  return out;
+}
+
+// Sointu on vain soundi: sitä ei kirjoiteta MIDIin, koska perusmuotoinen
+// kolmisointu joka nuotin päällä olisi FL:ssä purettavaa työtä.
+function toggleChord(){
+  const lane = seq();
+  const lo = hasSel() ? selLo() : (cursors[active] > 0 ? cursors[active] - 1 : -1);
+  const hi = hasSel() ? selHi() : lo;
+  if (lo < 0) return;
+
+  let any = false;
+  for (let i = lo; i <= hi; i++) if (!isRest(lane[i]) && !lane[i].c) any = true;
+
+  snapshot();
+  let last = null;
+  for (let i = lo; i <= hi; i++){
+    const it = lane[i];
+    if (isRest(it)) continue;
+    if (any) it.c = true; else delete it.c;
+    last = it;
+  }
+  stopPlay();
+  drawSeq();
+  if (last) blip(last.n, last.c);
 }
 
 function nudge(dir){
@@ -1313,6 +1362,7 @@ function drawSeq(){
     const s  = document.createElement("span");
     s.className = "note"
       + (isRest(it) ? " rest" : "")
+      + (it.c ? " chord" : "")
       + (i >= lo && i <= hi ? " range" : "")
       + (!hasSel() && i === cur - 1 ? " sel" : "");
     s.dataset.i = i;
@@ -1371,6 +1421,8 @@ function drawSeq(){
   const range = hasSel() ? lane.slice(lo, hi + 1) : (one ? [one] : []);
   const movable = range.some(it => !isRest(it));
   upBtn.disabled = downBtn.disabled = !movable;
+  chordBtn.disabled = !movable;
+  chordBtn.classList.toggle("on", movable && range.some(it => !isRest(it) && it.c));
 
   prevBtn.disabled = cur === 0;
   nextBtn.disabled = cur >= lane.length;
@@ -1405,7 +1457,7 @@ notesEl.addEventListener("click", e => {
   }
 
   const it = seq()[best];
-  if (!isRest(it)) blip(it.n);
+  if (!isRest(it)) blip(it.n, it.c);
   drawSeq();
 });
 
@@ -1444,6 +1496,7 @@ nextBtn.addEventListener("click", () => { moveCursor(+1); nextBtn.blur(); });
 
 upBtn.addEventListener("click",   () => { nudge(+1); upBtn.blur(); });
 downBtn.addEventListener("click", () => { nudge(-1); downBtn.blur(); });
+chordBtn.addEventListener("click", () => { toggleChord(); chordBtn.blur(); });
 
 hereBtn.addEventListener("click", () => {
   if (isPlaying){
@@ -1952,6 +2005,30 @@ let syncing    = false;                   // estää vieritysten kehäreaktion
 
 const laneUnits = t => lanes[t].reduce((a, it) => a + it.d, 0);
 
+// Napautuskohta napsahtaa ruudukkoon. Tahtiviivat ovat magneettisia, koska
+// basso ja soinnut osuvat useimmiten juuri niihin — muuten lähin puolikas.
+function snapTime(x){
+  const bar = Math.round(x / UNITS_PER_BAR) * UNITS_PER_BAR;
+  if (Math.abs(x - bar) < 0.75) return Math.max(0, bar);
+  return Math.max(0, Math.round(x * 2) / 2);
+}
+
+// Täyttää raidan lopun tauoilla annettuun mittaan asti, mahdollisimman
+// harvoilla tauoilla.
+const REST_SIZES = [8, 6, 4, 3, 2, 1.5, 1, 0.5, 0.25];
+
+function fillRests(t, gap){
+  let left = Math.min(gap, 64);
+  let guard = 0;
+  while (left > 0.2499 && guard++ < 300){
+    let d = 0;
+    for (const s of REST_SIZES){ if (s <= left + 1e-9){ d = s; break; } }
+    if (!d) break;
+    lanes[t].push({ r:true, d:d });
+    left = Math.round((left - d) * 1000) / 1000;
+  }
+}
+
 function drawLanes(){
   const span = Math.max(8, ...TRACKS.map((x, t) => laneUnits(t)));
   const wide = span * LANE_PX + 40;
@@ -1983,7 +2060,7 @@ function drawLanes(){
     let at = 0;
     lanes[t].forEach((it, i) => {
       const nb = document.createElement("div");
-      nb.className = "nb" + (isRest(it) ? " rest" : "")
+      nb.className = "nb" + (isRest(it) ? " rest" : "") + (it.c ? " chord" : "")
                    + (t === active && i === cursors[active] - 1 ? " cur" : "");
       nb.style.left  = (at * LANE_PX) + "px";
       nb.style.width = Math.max(3, it.d * LANE_PX - 2) + "px";
@@ -2026,13 +2103,23 @@ function drawLanes(){
         if (x < acc + lane[i].d){ hit = i; break; }
         acc += lane[i].d;
       }
+      clearSel();
+
       if (hit < lane.length){
         cursors[t] = hit + 1;
-        if (!isRest(lane[hit])) blip(lane[hit].n);
-      } else {
-        cursors[t] = lane.length;
+        if (!isRest(lane[hit])) blip(lane[hit].n, lane[hit].c);
+        drawSeq();
+        return;
       }
-      clearSel();
+
+      // Raidan lopun jälkeen: väli napautuskohtaan täytetään tauoilla, jolloin
+      // seuraava soitettu nuotti osuu suoraan haluttuun kohtaan.
+      const target = snapTime(x);
+      if (target > acc + 1e-9){
+        snapshot();
+        fillRests(t, target - acc);
+      }
+      cursors[t] = lane.length;
       drawSeq();
     });
 
@@ -2558,7 +2645,7 @@ function auditionAtCursor(){
   const c = cursors[active];
   if (c > 0 && c <= seq().length){
     const it = seq()[c - 1];
-    if (!isRest(it)) blip(it.n);
+    if (!isRest(it)) blip(it.n, it.c);
   }
 }
 

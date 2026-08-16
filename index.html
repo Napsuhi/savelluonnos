@@ -18,6 +18,7 @@
     --rec:#E5484D;
     --rest:#5C6675;
     --range:#1D3A38;
+    --cursor:#FF4FD8;
     --ink:#0E1116;
     --text:#8D97A5;
     --mono:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
@@ -188,9 +189,10 @@
     background:var(--line);
   }
   #notes b.caret{
-    flex:0 0 auto;width:2px;align-self:stretch;
-    margin:4px 0;border-radius:1px;
-    background:var(--tonic);
+    flex:0 0 auto;width:3px;align-self:stretch;
+    margin:2px 0;border-radius:2px;
+    background:var(--cursor);
+    box-shadow:0 0 5px var(--cursor);
   }
 
   .btnrow{display:flex;align-items:center;gap:5px;padding:5px 8px 0;}
@@ -198,6 +200,7 @@
   .btnrow button{padding:6px 5px;font-size:12px;flex:1 1 0;}
   #prev,#next,#shorter,#longer,#down,#up,#play,#playhere,#loop{flex:0 0 42px;text-align:center;font-size:14px;line-height:1;}
   #prev,#next{border-color:#3A4A5E;font-size:12px;}
+  #shorter,#longer{font-size:13px;}
   .btnrow.wide button{font-size:11px;padding:6px 2px;}
   #down,#up{border-color:#3A4A5E;}
   #loop{border-color:#3A4A5E;font-size:16px;}
@@ -338,8 +341,9 @@
   .lane .nb.rest{background:#1B222C;}
   .lane .nb.cur{box-shadow:0 0 0 2px var(--key-on);}
   .lane .cursorline{
-    position:absolute;top:2px;bottom:2px;width:2px;
-    background:var(--tonic);border-radius:1px;
+    position:absolute;top:1px;bottom:1px;width:3px;
+    background:var(--cursor);border-radius:2px;
+    box-shadow:0 0 5px var(--cursor);
   }
 
   /* ---- nauhoituksen reunavalo ----
@@ -1215,20 +1219,34 @@ function deleteAtCursor(){
   drawSeq();
 }
 
+// Lähin sallittu pituus annetulle arvolle (6 x 2 = 12 ei ole listalla).
+function nearestLen(v){
+  let best = LENS[0];
+  for (const l of LENS) if (Math.abs(l - v) < Math.abs(best - v)) best = l;
+  return best;
+}
+
+// Yhdelle nuotille askellus listaa pitkin, valinnalle kertominen kahdella.
+// Ero on olennainen: askellus muuttaa nuottien keskinäisiä suhteita
+// (1 ja 0.5 -> 1.5 ja 1), kertominen säilyttää ne (-> 2 ja 1).
 function changeLen(dir){
-  snapshot();
   const lane = seq();
-  const bump = it => {
+
+  if (hasSel()){
+    snapshot();
+    for (let i = selLo(); i <= selHi(); i++){
+      const it = lane[i];
+      it.d = nearestLen(dir > 0 ? it.d * 2 : it.d / 2);
+    }
+  } else {
+    if (cursors[active] === 0) return;
+    snapshot();
+    const it = lane[cursors[active] - 1];
     let i = LENS.indexOf(it.d);
     if (i < 0) i = 1;
     it.d = LENS[Math.max(0, Math.min(LENS.length - 1, i + dir))];
-  };
-  if (hasSel()){
-    for (let i = selLo(); i <= selHi(); i++) bump(lane[i]);
-  } else {
-    if (cursors[active] === 0) return;
-    bump(lane[cursors[active] - 1]);
   }
+
   stopPlay();
   drawSeq();
 }
@@ -1335,9 +1353,19 @@ function drawSeq(){
   pasteBtn.disabled = clip.length === 0;
   undoBtn.disabled  = history.length === 0;
 
+  // Napit kertovat kummassa tilassa ollaan: askellus vai kertominen.
   const one = !hasSel() && cur > 0 ? lane[cur - 1] : null;
-  shortBtn.disabled = hasSel() ? false : (!one || one.d === LENS[0]);
-  longBtn.disabled  = hasSel() ? false : (!one || one.d === LENS[LENS.length - 1]);
+  const selNotes = hasSel() ? lane.slice(lo, hi + 1) : [];
+  shortBtn.textContent = hasSel() ? "\u00f72" : "\u2212";
+  longBtn.textContent  = hasSel() ? "\u00d72" : "+";
+  shortBtn.setAttribute("aria-label", hasSel() ? "Puolita pituudet" : "Lyhennä");
+  longBtn.setAttribute("aria-label",  hasSel() ? "Kaksinkertaista pituudet" : "Pidennä");
+  shortBtn.disabled = hasSel()
+    ? selNotes.every(it => it.d === LENS[0])
+    : (!one || one.d === LENS[0]);
+  longBtn.disabled  = hasSel()
+    ? selNotes.every(it => it.d === LENS[LENS.length - 1])
+    : (!one || one.d === LENS[LENS.length - 1]);
 
   // Sävelaskelsiirto vaatii vähintään yhden oikean nuotin, ei pelkkiä taukoja.
   const range = hasSel() ? lane.slice(lo, hi + 1) : (one ? [one] : []);
